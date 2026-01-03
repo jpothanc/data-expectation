@@ -5,6 +5,7 @@
 	import { exchangesStore, fetchExchanges, getDefaultExchange } from '../stores/exchanges.svelte';
 	import DataTable from './DataTable.svelte';
 	import Select from './Select.svelte';
+	import InstrumentDetailModal from './InstrumentDetailModal.svelte';
 
 	interface Props {
 		productType?: 'stock' | 'future' | 'option';
@@ -18,6 +19,8 @@
 	let loading = $state(false);
 	let error = $state<string | null>(null);
 	let instrumentsData = $state<any[] | null>(null);
+	let selectedInstrument = $state<Record<string, any> | null>(null);
+	let showDetailModal = $state(false);
 
 	// Use shared exchanges store (direct access to reactive state)
 	const exchanges = $derived.by(() => exchangesStore.exchanges);
@@ -80,6 +83,20 @@
 			return { data: [], headers: [] };
 		}
 		return convertInstrumentsToTableData(instrumentsData);
+	}
+
+	function handleRowClick(row: Record<string, any>, index: number) {
+		// Use index to get the original instrument data
+		// This is more reliable than matching by fields since the table data is transformed
+		if (instrumentsData && instrumentsData[index]) {
+			selectedInstrument = instrumentsData[index];
+			showDetailModal = true;
+		}
+	}
+
+	function closeDetailModal() {
+		showDetailModal = false;
+		selectedInstrument = null;
 	}
 
 	// Fetch exchanges on mount (only once)
@@ -186,6 +203,7 @@
 				data={tableData.data}
 				title="Instruments ({tableData.data.length})"
 				ricColumn="RIC"
+				onRowClick={handleRowClick}
 			/>
 		{:else}
 			<div class="info-message">
@@ -193,6 +211,12 @@
 			</div>
 		{/if}
 	{/if}
+
+	<InstrumentDetailModal 
+		open={showDetailModal} 
+		instrument={selectedInstrument} 
+		onClose={closeDetailModal} 
+	/>
 </div>
 
 <style>

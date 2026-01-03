@@ -7,9 +7,16 @@
 		title?: string;
 		maxHeight?: string;
 		ricColumn?: string;
+		onRowClick?: (row: Record<string, any>, index: number) => void;
 	}
 
-	let { headers, data, title, maxHeight = '600px', ricColumn = 'RIC' }: Props = $props();
+	let { headers, data, title, maxHeight = '600px', ricColumn = 'RIC', onRowClick }: Props = $props();
+
+	function handleRowClick(row: Record<string, any>, index: number) {
+		if (onRowClick) {
+			onRowClick(row, index);
+		}
+	}
 </script>
 
 {#if data.length > 0 && headers.length > 0}
@@ -27,8 +34,8 @@
 					</tr>
 				</thead>
 				<tbody>
-					{#each data as row}
-						<tr>
+					{#each data as row, index}
+						<tr class={onRowClick ? 'clickable-row' : ''} onclick={() => handleRowClick(row, index)}>
 							{#each headers as header}
 								<td class="cell {header === ricColumn ? 'ric-cell' : ''}">
 									{#if row[header]}
@@ -154,6 +161,15 @@
 
 	.data-table tbody tr:hover {
 		background-color: #1f2937;
+	}
+
+	.data-table tbody tr.clickable-row {
+		cursor: pointer;
+		transition: background-color 0.15s;
+	}
+
+	.data-table tbody tr.clickable-row:hover {
+		background-color: #374151;
 	}
 
 	.data-table tbody tr:last-child td {

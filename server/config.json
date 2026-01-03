@@ -43,6 +43,9 @@
   "database": {
     "connection_string_apac_uat": "DRIVER={ODBC Driver 17 for SQL Server};SERVER=(localdb)\\MSSQLLocalDB;DATABASE=Instruments;Trusted_Connection=yes;"
   },
+  "server": {
+    "port": 5006
+  },
   "logging": {
     "log_folder": "log",
     "log_file": "data-ex-api.log",

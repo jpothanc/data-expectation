@@ -103,13 +103,9 @@ export async function validateCombinedRule(
 }
 
 export async function getInstrumentsByExchange(exchange: string, productType: string = 'stock'): Promise<any[]> {
-	const endpoint = productType === 'stock' 
-		? `${API_ENDPOINTS.instrumentsByExchange}/${exchange}`
-		: productType === 'future'
-		? `/api/v1/instruments/future/exchange/${exchange}`
-		: `/api/v1/instruments/option/exchange/${exchange}`;
+	const endpoint = `/api/v1/instruments/exchange/${exchange}`;
+	const url = `${API_BASE_URL}${endpoint}?product_type=${productType}`;
 	
-	const url = `${API_BASE_URL}${endpoint}`;
 	const response = await fetch(url);
 	
 	if (!response.ok) {
@@ -121,15 +117,11 @@ export async function getInstrumentsByExchange(exchange: string, productType: st
 }
 
 export async function getInstrumentById(instrumentId: string, exchange?: string, productType: string = 'stock'): Promise<any[]> {
-	const endpoint = productType === 'stock'
-		? `${API_ENDPOINTS.instrumentById}/${encodeURIComponent(instrumentId)}`
-		: productType === 'future'
-		? `/api/v1/instruments/future/id/${encodeURIComponent(instrumentId)}`
-		: `/api/v1/instruments/option/id/${encodeURIComponent(instrumentId)}`;
+	const endpoint = `${API_ENDPOINTS.instrumentById}/${encodeURIComponent(instrumentId)}`;
 	
-	let url = `${API_BASE_URL}${endpoint}`;
+	let url = `${API_BASE_URL}${endpoint}?product_type=${productType}`;
 	if (exchange) {
-		url += `?exchange=${exchange}`;
+		url += `&exchange=${encodeURIComponent(exchange)}`;
 	}
 	
 	const response = await fetch(url);
@@ -143,15 +135,10 @@ export async function getInstrumentById(instrumentId: string, exchange?: string,
 }
 
 export async function getInstrumentByRic(ric: string, exchange?: string, productType: string = 'stock'): Promise<any[]> {
-	const endpoint = productType === 'stock'
-		? `${API_ENDPOINTS.instrumentByRic}/${encodeURIComponent(ric)}`
-		: productType === 'future'
-		? `/api/v1/instruments/future/ric/${encodeURIComponent(ric)}`
-		: `/api/v1/instruments/option/ric/${encodeURIComponent(ric)}`;
-	
-	let url = `${API_BASE_URL}${endpoint}`;
+	const endpoint = `/api/v1/instruments/ric/${encodeURIComponent(ric)}`;
+	let url = `${API_BASE_URL}${endpoint}?product_type=${productType}`;
 	if (exchange) {
-		url += `?exchange=${exchange}`;
+		url += `&exchange=${encodeURIComponent(exchange)}`;
 	}
 	
 	const response = await fetch(url);

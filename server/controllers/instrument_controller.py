@@ -69,9 +69,10 @@ def _get_instruments_by_exchange(exchange, product_type='stock', limit=None, off
     return service.get_by_exchange(exchange, limit, offset)
 
 
-# Stock endpoints
+# Unified endpoints with product_type parameter
+
 @instrument_api.route('/ric/<ric>', methods=['GET'])
-def get_stock_by_ric(ric):
+def get_instrument_by_ric(ric):
     """
     Get instrument by RIC code
     ---
@@ -83,6 +84,16 @@ def get_stock_by_ric(ric):
         type: string
         required: true
         description: Reuters Instrument Code (e.g., "0005.HK")
+      - name: product_type
+        in: query
+        type: string
+        required: false
+        default: stock
+        enum:
+          - stock
+          - option
+          - future
+        description: Product type (stock, option, or future)
       - name: exchange
         in: query
         type: string
@@ -91,13 +102,20 @@ def get_stock_by_ric(ric):
     responses:
       200:
         description: Instrument found
+      400:
+        description: Invalid product_type parameter
       404:
         description: Instrument not found
     """
+    product_type = request.args.get('product_type', 'stock').lower()
     exchange = request.args.get('exchange')
     
+    # Validate product_type
+    if product_type not in ['stock', 'option', 'future']:
+        return jsonify({"error": f"Invalid product_type '{product_type}'. Must be 'stock', 'option', or 'future'."}), 400
+    
     try:
-        result, error_response = _get_instrument_by_ric(ric, 'stock', exchange)
+        result, error_response = _get_instrument_by_ric(ric, product_type, exchange)
         if error_response:
             return error_response
         return jsonify(result)
@@ -106,7 +124,7 @@ def get_stock_by_ric(ric):
 
 
 @instrument_api.route('/id/<instrument_id>', methods=['GET'])
-def get_stock_by_id(instrument_id):
+def get_instrument_by_id(instrument_id):
     """
     Get instrument by MasterId
     ---
@@ -118,6 +136,16 @@ def get_stock_by_id(instrument_id):
         type: string
         required: true
         description: MasterId of the instrument
+      - name: product_type
+        in: query
+        type: string
+        required: false
+        default: stock
+        enum:
+          - stock
+          - option
+          - future
+        description: Product type (stock, option, or future)
       - name: exchange
         in: query
         type: string
@@ -129,10 +157,15 @@ def get_stock_by_id(instrument_id):
       404:
         description: Instrument not found
     """
+    product_type = request.args.get('product_type', 'stock').lower()
     exchange = request.args.get('exchange')
     
+    # Validate product_type
+    if product_type not in ['stock', 'option', 'future']:
+        return jsonify({"error": f"Invalid product_type '{product_type}'. Must be 'stock', 'option', or 'future'."}), 400
+    
     try:
-        result, error_response = _get_instrument_by_id(instrument_id, 'stock', exchange)
+        result, error_response = _get_instrument_by_id(instrument_id, product_type, exchange)
         if error_response:
             return error_response
         return jsonify(result)
@@ -204,7 +237,7 @@ def get_exchanges_by_region():
 
 
 @instrument_api.route('/exchange/<exchange>', methods=['GET'])
-def get_stocks_by_exchange(exchange):
+def get_instruments_by_exchange(exchange):
     """
     Get all instruments for a specific exchange
     ---
@@ -216,6 +249,16 @@ def get_stocks_by_exchange(exchange):
         type: string
         required: true
         description: Exchange code
+      - name: product_type
+        in: query
+        type: string
+        required: false
+        default: stock
+        enum:
+          - stock
+          - option
+          - future
+        description: Product type (stock, option, or future)
       - name: limit
         in: query
         type: integer
@@ -230,236 +273,21 @@ def get_stocks_by_exchange(exchange):
     responses:
       200:
         description: List of instruments
+      400:
+        description: Invalid product_type parameter
       404:
         description: Exchange not found
     """
+    product_type = request.args.get('product_type', 'stock').lower()
     limit = request.args.get('limit', type=int)
     offset = request.args.get('offset', default=0, type=int)
     
-    try:
-        result = _get_instruments_by_exchange(exchange, 'stock', limit, offset)
-        return jsonify(result)
-    except (ValueError, FileNotFoundError) as e:
-        return jsonify({"error": str(e)}), 404
-
-
-# Futures endpoints
-@instrument_api.route('/future/ric/<ric>', methods=['GET'])
-def get_future_by_ric(ric):
-    """
-    Get future instrument by RIC code
-    ---
-    tags:
-      - Instruments
-    parameters:
-      - name: ric
-        in: path
-        type: string
-        required: true
-        description: Reuters Instrument Code
-      - name: exchange
-        in: query
-        type: string
-        required: false
-        description: Exchange code to limit search
-    responses:
-      200:
-        description: Future instrument found
-      404:
-        description: Future instrument not found
-    """
-    exchange = request.args.get('exchange')
+    # Validate product_type
+    if product_type not in ['stock', 'option', 'future']:
+        return jsonify({"error": f"Invalid product_type '{product_type}'. Must be 'stock', 'option', or 'future'."}), 400
     
     try:
-        result, error_response = _get_instrument_by_ric(ric, 'future', exchange)
-        if error_response:
-            return error_response
-        return jsonify(result)
-    except (ValueError, FileNotFoundError) as e:
-        return jsonify({"error": str(e)}), 404
-
-
-@instrument_api.route('/future/id/<instrument_id>', methods=['GET'])
-def get_future_by_id(instrument_id):
-    """
-    Get future instrument by MasterId
-    ---
-    tags:
-      - Instruments
-    parameters:
-      - name: instrument_id
-        in: path
-        type: string
-        required: true
-        description: MasterId of the future instrument
-      - name: exchange
-        in: query
-        type: string
-        required: false
-        description: Exchange code to limit search
-    responses:
-      200:
-        description: Future instrument found
-      404:
-        description: Future instrument not found
-    """
-    exchange = request.args.get('exchange')
-    
-    try:
-        result, error_response = _get_instrument_by_id(instrument_id, 'future', exchange)
-        if error_response:
-            return error_response
-        return jsonify(result)
-    except (ValueError, FileNotFoundError) as e:
-        return jsonify({"error": str(e)}), 404
-
-
-@instrument_api.route('/future/exchange/<exchange>', methods=['GET'])
-def get_futures_by_exchange(exchange):
-    """
-    Get all future instruments for a specific exchange
-    ---
-    tags:
-      - Instruments
-    parameters:
-      - name: exchange
-        in: path
-        type: string
-        required: true
-        description: Exchange code
-      - name: limit
-        in: query
-        type: integer
-        required: false
-        description: Maximum number of results
-      - name: offset
-        in: query
-        type: integer
-        required: false
-        description: Offset for pagination
-        default: 0
-    responses:
-      200:
-        description: List of future instruments
-      404:
-        description: Exchange not found
-    """
-    limit = request.args.get('limit', type=int)
-    offset = request.args.get('offset', default=0, type=int)
-    
-    try:
-        result = _get_instruments_by_exchange(exchange, 'future', limit, offset)
-        return jsonify(result)
-    except (ValueError, FileNotFoundError) as e:
-        return jsonify({"error": str(e)}), 404
-
-
-# Options endpoints
-@instrument_api.route('/option/ric/<ric>', methods=['GET'])
-def get_option_by_ric(ric):
-    """
-    Get option instrument by RIC code
-    ---
-    tags:
-      - Instruments
-    parameters:
-      - name: ric
-        in: path
-        type: string
-        required: true
-        description: Reuters Instrument Code
-      - name: exchange
-        in: query
-        type: string
-        required: false
-        description: Exchange code to limit search
-    responses:
-      200:
-        description: Option instrument found
-      404:
-        description: Option instrument not found
-    """
-    exchange = request.args.get('exchange')
-    
-    try:
-        result, error_response = _get_instrument_by_ric(ric, 'option', exchange)
-        if error_response:
-            return error_response
-        return jsonify(result)
-    except (ValueError, FileNotFoundError) as e:
-        return jsonify({"error": str(e)}), 404
-
-
-@instrument_api.route('/option/id/<instrument_id>', methods=['GET'])
-def get_option_by_id(instrument_id):
-    """
-    Get option instrument by MasterId
-    ---
-    tags:
-      - Instruments
-    parameters:
-      - name: instrument_id
-        in: path
-        type: string
-        required: true
-        description: MasterId of the option instrument
-      - name: exchange
-        in: query
-        type: string
-        required: false
-        description: Exchange code to limit search
-    responses:
-      200:
-        description: Option instrument found
-      404:
-        description: Option instrument not found
-    """
-    exchange = request.args.get('exchange')
-    
-    try:
-        result, error_response = _get_instrument_by_id(instrument_id, 'option', exchange)
-        if error_response:
-            return error_response
-        return jsonify(result)
-    except (ValueError, FileNotFoundError) as e:
-        return jsonify({"error": str(e)}), 404
-
-
-@instrument_api.route('/option/exchange/<exchange>', methods=['GET'])
-def get_options_by_exchange(exchange):
-    """
-    Get all option instruments for a specific exchange
-    ---
-    tags:
-      - Instruments
-    parameters:
-      - name: exchange
-        in: path
-        type: string
-        required: true
-        description: Exchange code
-      - name: limit
-        in: query
-        type: integer
-        required: false
-        description: Maximum number of results
-      - name: offset
-        in: query
-        type: integer
-        required: false
-        description: Offset for pagination
-        default: 0
-    responses:
-      200:
-        description: List of option instruments
-      404:
-        description: Exchange not found
-    """
-    limit = request.args.get('limit', type=int)
-    offset = request.args.get('offset', default=0, type=int)
-    
-    try:
-        result = _get_instruments_by_exchange(exchange, 'option', limit, offset)
+        result = _get_instruments_by_exchange(exchange, product_type, limit, offset)
         return jsonify(result)
     except (ValueError, FileNotFoundError) as e:
         return jsonify({"error": str(e)}), 404
