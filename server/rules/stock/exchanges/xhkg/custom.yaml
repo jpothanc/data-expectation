@@ -26,7 +26,7 @@ ric_format_validation:
   - type: ExpectColumnValuesToNotBeNull
     column: RIC
 
-min_tradable_quantity_validation1:
+min_tradable_quantity_validation:
   - type: ExpectColumnValuesToNotBeNull
     column: MinTradableQuantity
   - type: ExpectColumnValuesToBeBetween
