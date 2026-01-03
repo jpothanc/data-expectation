@@ -21,7 +21,7 @@ class ValidationService:
             exchange_map: Optional dict mapping exchange codes to data sources.
                          If None, uses default CSV file mapping for the product type.
             product_type: Product type ('stock', 'stocks', 'option', 'options', 'future'). Defaults to 'stock'.
-            rules_dir: Optional path to rules directory. If None, reads from config.json or defaults to "config/rules".
+            rules_dir: Optional path to rules directory. If None, reads from config.json or defaults to "rules".
         """
         self.loader = loader
         # Normalize product type (e.g., 'stocks' -> 'stock', 'option' -> 'options')
@@ -48,7 +48,7 @@ class ValidationService:
                 rules_dir = config_service.get_rules_dir()
             except Exception:
                 # Fallback to default if config service fails
-                rules_dir = "config/rules"
+                rules_dir = "rules"
         
         self.rule_loader = RuleLoader(rules_dir=rules_dir)
         self.instrument_service = InstrumentService(loader, exchange_map=self.exchange_map, product_type=product_type)

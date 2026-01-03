@@ -6,7 +6,7 @@ from pathlib import Path
 class RuleLoader:
     """Loads and parses validation rules from YAML files.
     
-    Supports both modular structure (config/rules/) and single-file structure (validation_rules.yaml).
+    Supports both modular structure (rules/) and single-file structure (validation_rules.yaml).
     """
     
     def __init__(self, config_path=None, rules_dir=None):
@@ -15,10 +15,10 @@ class RuleLoader:
         
         Args:
             config_path: Path to the single YAML configuration file (for backward compatibility)
-            rules_dir: Path to the modular rules directory (default: "config/rules/")
+            rules_dir: Path to the modular rules directory (default: "rules/")
         """
         self.config_path = Path(config_path) if config_path else None
-        self.rules_dir = Path(rules_dir) if rules_dir else Path("config/rules")
+        self.rules_dir = Path(rules_dir) if rules_dir else Path("rules")
         self._config = None
         self._use_modular = self._detect_modular_structure()
     

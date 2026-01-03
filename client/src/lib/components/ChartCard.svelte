@@ -93,7 +93,7 @@
 
 	.chart-title {
 		margin: 0;
-		font-size: 0.75rem;
+		font-size: 1rem;
 		font-weight: 600;
 		color: #ffffff;
 		letter-spacing: -0.01em;
@@ -116,7 +116,7 @@
 	}
 
 	.stat-label {
-		font-size: 0.5625rem;
+		font-size: 0.75rem;
 		color: #9ca3af;
 		font-weight: 500;
 		text-transform: uppercase;
@@ -132,7 +132,7 @@
 	}
 
 	.stat-value {
-		font-size: 0.6875rem;
+		font-size: 0.875rem;
 		font-weight: 700;
 		color: #ffffff;
 		font-variant-numeric: tabular-nums;

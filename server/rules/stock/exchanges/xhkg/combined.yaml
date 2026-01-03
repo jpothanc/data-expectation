@@ -3,8 +3,8 @@
 # 
 # Priority order:
 # 1. Exchange-level combined.yaml (this file) - HIGHEST PRIORITY
-# 2. Product type combined.yaml (config/rules/stock/combined.yaml)
-# 3. Root combined.yaml (config/rules/combined.yaml)
+# 2. Product type combined.yaml (rules/stock/combined.yaml)
+# 3. Root combined.yaml (rules/combined.yaml)
 
 # Example: Override is_tradable_stocks for XHKG-specific validation
 is_tradable_stocks:

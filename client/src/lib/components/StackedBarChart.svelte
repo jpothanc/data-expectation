@@ -60,7 +60,7 @@
 						position: 'top',
 						labels: {
 							color: '#e5e7eb',
-							font: { size: 12 }
+							font: { size: 14 }
 						}
 					},
 					tooltip: {
@@ -86,12 +86,18 @@
 				scales: {
 					x: {
 						stacked: true,
-						ticks: { color: '#e5e7eb' },
+						ticks: { 
+							color: '#e5e7eb',
+							font: { size: 12 }
+						},
 						grid: { color: 'rgba(55, 65, 81, 0.3)' }
 					},
 					y: {
 						stacked: true,
-						ticks: { color: '#e5e7eb' },
+						ticks: { 
+							color: '#e5e7eb',
+							font: { size: 12 }
+						},
 						grid: { color: 'rgba(55, 65, 81, 0.3)' }
 					}
 				}

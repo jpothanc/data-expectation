@@ -172,9 +172,9 @@ class ConfigService:
         Get the configured rules directory path.
         
         Returns:
-            str: Path to the rules directory (defaults to "config/rules" if not configured)
+            str: Path to the rules directory (defaults to "rules" if not configured)
         """
-        return self._config.get('rules', {}).get('rules_dir', 'config/rules')
+        return self._config.get('rules', {}).get('rules_dir', 'rules')
     
     def get_data_folder(self):
         """
