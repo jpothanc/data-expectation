@@ -1,0 +1,35 @@
+# Exchange-level custom validation rules for XHKG (Hong Kong Exchange)
+# These rules override product type-level custom rules when they have the same name.
+# 
+# Priority order:
+# 1. Exchange-level custom.yaml (this file) - HIGHEST PRIORITY
+# 2. Exchange-level combined.yaml
+# 3. Product type custom.yaml (config/rules/stock/custom.yaml)
+# 4. Product type combined.yaml
+# 5. Root custom.yaml
+# 6. Root combined.yaml
+
+# Example: Override status_validation for XHKG-specific values
+status_validation:
+  - type: ExpectColumnValuesToBeInSet
+    column: TradingStatus
+    value_set:
+      - Active
+      - InActive
+      - Suspended  # XHKG-specific status
+
+# Example: XHKG-specific validation rule
+ric_format_validation:
+  - type: ExpectColumnValuesToMatchRegex
+    column: RIC
+    regex: '.*\.HK$'
+  - type: ExpectColumnValuesToNotBeNull
+    column: RIC
+
+min_tradable_quantity_validation1:
+  - type: ExpectColumnValuesToNotBeNull
+    column: MinTradableQuantity
+  - type: ExpectColumnValuesToBeBetween
+    column: RoundLotSize
+    max_value: 1000000
+    min_value: 1

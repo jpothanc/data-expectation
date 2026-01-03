@@ -1,0 +1,55 @@
+# Custom validation rules
+# All custom rule sets organized by name
+
+status_validation:
+  - type: ExpectColumnValuesToBeInSet
+    column: TradingStatus
+    value_set:
+      - Active
+      - InActive
+
+issuer_name_validation:
+  - type: ExpectColumnValuesToNotBeNull
+    column: IssuerName
+
+isin_validation:
+  - type: ExpectColumnValuesToBeUnique
+    column: ISIN
+  - type: ExpectColumnValuesToNotBeNull
+    column: ISIN
+
+ric_validation:
+  - type: ExpectColumnValuesToNotBeNull
+    column: RIC
+
+bbg_ticker_validation:
+  - type: ExpectColumnValuesToNotBeNull
+    column: BBGTicker
+
+# Example: Multiple columns in a single rule
+identifier_validation:
+  - type: ExpectColumnValuesToNotBeNull
+    column: ISIN, RIC, BBGTicker
+
+min_tradable_quantity_validation:
+  - type: ExpectColumnValuesToNotBeNull
+    column: MinTradableQuantity
+  - type: ExpectColumnValuesToBeBetween
+    column: RoundLotSize
+    max_value: 10000
+    min_value: 1
+
+comprehensive_validation:
+  - type: ExpectColumnValuesToBeInSet
+    column: Status
+    value_set:
+      - ACTIVE
+      - INACTIVE
+  - type: ExpectColumnValuesToNotBeNull
+    column: IssuerName
+  - type: ExpectColumnValuesToNotBeNull
+    column: ISIN
+
+
+
+

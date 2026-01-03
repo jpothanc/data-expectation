@@ -1,0 +1,23 @@
+# Hong Kong Exchange (XHKG) specific validation rules
+
+- type: ExpectColumnValuesToBeInSet
+  column: Currency
+  value_set:
+    - HKD
+
+- type: ExpectColumnValuesToBeInSet
+  column: CountryOfListing
+  value_set:
+    - HKG
+
+- type: ExpectColumnValuesToBeInSet
+  column: CountryOfHolding
+  value_set:
+    - HKG
+
+# RIC format validation: Must end with .HK
+- type: ExpectColumnValuesToMatchRegex
+  column: RIC
+  regex: '.*\.HK$'
+
+

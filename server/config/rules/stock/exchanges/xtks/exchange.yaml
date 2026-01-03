@@ -1,0 +1,20 @@
+# Tokyo Stock Exchange (XTKS) specific validation rules
+
+- type: ExpectColumnValuesToBeInSet
+  column: Currency
+  value_set:
+    - JPY
+
+- type: ExpectColumnValuesToBeInSet
+  column: CountryOfListing
+  value_set:
+    - JPN
+
+# RIC format validation: Must end with .T
+- type: ExpectColumnValuesToMatchRegex
+  column: RIC
+  regex: '.*\.T$'
+
+
+
+

@@ -1,0 +1,76 @@
+{
+  "data_loader": {
+    "type": "csv",
+    "csv": {
+      "data_folder": "data",
+      "exchange_map": {
+        "stock": {
+          "XHKG": "stocks/db_hkg.csv",
+          "XNSE": "stocks/db_nse.csv",
+          "XTKS": "stocks/db_tks.csv",
+          "XLON": "stocks/db_lon.csv",
+          "XPAR": "stocks/db_par.csv",
+          "XNYS": "stocks/db_nys.csv",
+          "XNAS": "stocks/db_nas.csv"
+        },
+        "option": {
+          "XHKG": "options/db_hkg.csv",
+          "XTKS": "options/db_tks.csv",
+          "XLON": "options/db_lon.csv",
+          "XPAR": "options/db_par.csv",
+          "XNYS": "options/db_nys.csv",
+          "XNAS": "options/db_nas.csv"
+        },
+        "future": {
+          "XHKG": "futures/db_hkg.csv",
+          "XTKS": "futures/db_tks.csv",
+          "XLON": "futures/db_lon.csv",
+          "XPAR": "futures/db_par.csv",
+          "XNYS": "futures/db_nys.csv",
+          "XNAS": "futures/db_nas.csv"
+        }
+      }
+    },
+    "database": {
+      "connection_string_apac_uat": "DRIVER={ODBC Driver 17 for SQL Server};SERVER=JESS;Trusted_Connection=yes;Persist Security Info=False;Pooling=False;MultipleActiveResultSets=False;Encrypt=Yes;TrustServerCertificate=Yes;Application Name=SQL Server Management Studio;Command Timeout=0;DATABASE=Instruments;",
+      "query_templates": {
+        "stock": "SELECT * FROM StockMaster WHERE Exchange = '{exchange}'",
+        "option": "SELECT * FROM OptionMaster WHERE Exchange = '{exchange}'",
+        "future": "SELECT * FROM FutureMaster WHERE Exchange = '{exchange}'"
+      }
+    }
+  },
+  "database": {
+    "connection_string_apac_uat": "DRIVER={ODBC Driver 17 for SQL Server};SERVER=(localdb)\\MSSQLLocalDB;DATABASE=Instruments;Trusted_Connection=yes;"
+  },
+  "logging": {
+    "log_folder": "log",
+    "log_file": "data-ex-api.log",
+    "level": "INFO",
+    "format": "%(asctime)s - %(levelname)s - %(message)s"
+  },
+  "rules": {
+    "rules_dir": "config/rules"
+  },
+  "data": {
+    "data_folder": "data"
+  },
+  "regions": {
+    "apac": {
+      "stock": "XHKG,XNSE,XTKS",
+      "option": "XHKG,XTKS",
+      "future": "XHKG,XTKS"
+    },
+    "emea": {
+      "stock": "XLON,XPAR",
+      "option": "XLON,XPAR",
+      "future": "XLON,XPAR"
+    },
+    "us": {
+      "stock": "XNYS,XNAS",
+      "option": "XNYS,XNAS",
+      "future": "XNYS,XNAS"
+    }
+  }
+}
+

@@ -1,0 +1,5 @@
+- type: ExpectColumnValuesToBeUnique
+  column: MasterId
+
+- type: ExpectColumnValuesToNotBeNull
+  column: MasterId

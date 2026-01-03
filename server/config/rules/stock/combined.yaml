@@ -1,0 +1,32 @@
+# Combined validation rules
+# Pre-combined rule sets that reference other custom rules
+
+combined_status_and_issuer:
+  include:
+    - status_validation
+    - issuer_name_validation
+
+combined_validation_suite:
+  include:
+    - status_validation
+    - issuer_name_validation
+    - isin_validation
+
+comprehensive_identifier_validation:
+  include:
+    - isin_validation
+    - ric_validation
+    - bbg_ticker_validation
+
+is_tradable_stocks:
+  include:
+    - status_validation
+    - issuer_name_validation
+    - isin_validation
+    - ric_validation
+    - bbg_ticker_validation
+    - min_tradable_quantity_validation
+
+is_tradable_stocks1:
+    include:
+      - is_tradable_stocks

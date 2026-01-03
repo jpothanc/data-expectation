@@ -1,0 +1,27 @@
+# Exchange-level combined validation rules for XHKG (Hong Kong Exchange)
+# These combined rules override product type-level combined rules when they have the same name.
+# 
+# Priority order:
+# 1. Exchange-level combined.yaml (this file) - HIGHEST PRIORITY
+# 2. Product type combined.yaml (config/rules/stock/combined.yaml)
+# 3. Root combined.yaml (config/rules/combined.yaml)
+
+# Example: Override is_tradable_stocks for XHKG-specific validation
+is_tradable_stocks:
+  include:
+    - status_validation
+    - ric_format_validation  # XHKG-specific RIC format validation
+    - min_tradable_quantity_validation
+  rules:
+    - type: ExpectColumnValuesToBeInSet
+      column: Currency
+      value_set:
+        - HKD
+
+# Example: XHKG-specific combined rule
+hkg_tradable_validation:
+  include:
+    - status_validation
+    - ric_format_validation
+    - min_tradable_quantity_validation
+

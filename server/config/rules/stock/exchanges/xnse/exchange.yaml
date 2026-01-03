@@ -1,0 +1,17 @@
+# National Stock Exchange of India (XNSE) specific validation rules
+
+- type: ExpectColumnValuesToBeInSet
+  column: Currency
+  value_set:
+    - INR
+
+- type: ExpectColumnValuesToBeInSet
+  column: CountryOfListing
+  value_set:
+    - IND
+
+# RIC format validation: Must end with .NS
+- type: ExpectColumnValuesToMatchRegex
+  column: RIC
+  regex: '^.*\.NS$'
+

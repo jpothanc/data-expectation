@@ -1,0 +1,42 @@
+# Base validation rules
+# These rules apply to all exchanges
+
+
+
+- type: ExpectColumnValuesToBeUnique
+  column: ISIN, RIC, BBGTicker
+
+- type: ExpectColumnValuesToNotBeNull
+  column: ISIN, RIC, BBGTicker
+
+- type: ExpectColumnValuesToNotBeNull
+  column: Exchange, Currency, countryOfListing, IssuerName, SecurityType, IssueType, MinTradableQuantity
+
+
+#- type: ExpectColumnValuesToBeInSet
+#  column: Status
+#  value_set:
+#    - ACTIVE
+#    - INACTIVE
+#    - SUSPENDED
+
+- type: ExpectColumnValuesToNotBeNull
+  column: SecurityType
+
+- type: ExpectColumnValuesToBeInSet
+  column: SecurityType
+  value_set:
+    - Equity
+    - Bond
+
+- type: ExpectColumnValuesToBeInSet
+  column: IssueType
+  value_set:
+    - EQ
+    - BD
+
+- type: ExpectColumnValuesToBeBetween
+  column: MinTradableQuantity
+  min_value: 1
+
+
