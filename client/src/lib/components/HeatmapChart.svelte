@@ -20,6 +20,11 @@
 	let loadingDetails = $state(false);
 	let errorDetailsError = $state<string | null>(null);
 	let showErrorModal = $state(false);
+	let hoveredCell = $state<{region: string, date: string, count: number} | null>(null);
+	let hoverTimeout: ReturnType<typeof setTimeout> | null = null;
+	let tooltipElement: HTMLElement | null = null;
+	let mouseX = $state(0);
+	let mouseY = $state(0);
 
 	function getFailureCount(run: any): number {
 		if (run.FailedExpectations !== undefined && run.FailedExpectations !== null) {
@@ -218,6 +223,28 @@
 									style="background-color: {color};"
 									title="{region} - {formatDateTime(date)}: {count} {count === 1 ? 'failure' : 'failures'}"
 									onclick={() => count > 0 && handleCellClick(region, date)}
+									onmouseenter={(e) => {
+										if (count > 0) {
+											mouseX = e.clientX;
+											mouseY = e.clientY;
+											if (hoverTimeout) clearTimeout(hoverTimeout);
+											hoverTimeout = setTimeout(() => {
+												hoveredCell = { region, date, count };
+											}, 300);
+										}
+									}}
+									onmousemove={(e) => {
+										if (count > 0 && hoveredCell) {
+											mouseX = e.clientX;
+											mouseY = e.clientY;
+										}
+									}}
+									onmouseleave={() => {
+										if (hoverTimeout) clearTimeout(hoverTimeout);
+										hoverTimeout = setTimeout(() => {
+											hoveredCell = null;
+										}, 100);
+									}}
 									role={count > 0 ? 'button' : undefined}
 									tabindex={count > 0 ? 0 : undefined}
 									onkeydown={(e) => {
@@ -253,6 +280,21 @@
 		error={errorDetailsError}
 		onClose={closeErrorModal}
 	/>
+{/if}
+
+{#if hoveredCell}
+	<div class="cell-tooltip" bind:this={tooltipElement} style="top: {mouseY + 10}px; left: {mouseX + 10}px;">
+		<div class="tooltip-content">
+			<div class="tooltip-header">
+				<strong>{hoveredCell.region}</strong>
+				<span class="tooltip-date">{formatDateTime(hoveredCell.date)}</span>
+			</div>
+			<div class="tooltip-body">
+				<span class="tooltip-count">{hoveredCell.count} {hoveredCell.count === 1 ? 'failure' : 'failures'}</span>
+				<span class="tooltip-hint">Click for details</span>
+			</div>
+		</div>
+	</div>
 {/if}
 
 
@@ -464,5 +506,71 @@
 		background: rgba(55, 65, 81, 0.3);
 		border-radius: 0.5rem;
 		border: 1px dashed #374151;
+	}
+
+	.cell-tooltip {
+		position: fixed;
+		z-index: 100000;
+		pointer-events: none;
+		animation: tooltipFadeIn 0.2s ease-out;
+	}
+
+	@keyframes tooltipFadeIn {
+		from {
+			opacity: 0;
+			transform: translateY(-5px);
+		}
+		to {
+			opacity: 1;
+			transform: translateY(0);
+		}
+	}
+
+	.tooltip-content {
+		background-color: #1f2937;
+		border: 1px solid #374151;
+		border-radius: 0.375rem;
+		padding: 0.75rem;
+		box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+		min-width: 200px;
+		max-width: 300px;
+	}
+
+	.tooltip-header {
+		display: flex;
+		flex-direction: column;
+		gap: 0.25rem;
+		margin-bottom: 0.5rem;
+		padding-bottom: 0.5rem;
+		border-bottom: 1px solid #374151;
+	}
+
+	.tooltip-header strong {
+		color: #ffffff;
+		font-size: 0.875rem;
+		font-weight: 600;
+	}
+
+	.tooltip-date {
+		color: #9ca3af;
+		font-size: 0.75rem;
+	}
+
+	.tooltip-body {
+		display: flex;
+		flex-direction: column;
+		gap: 0.25rem;
+	}
+
+	.tooltip-count {
+		color: #ef4444;
+		font-size: 0.875rem;
+		font-weight: 600;
+	}
+
+	.tooltip-hint {
+		color: #6b7280;
+		font-size: 0.6875rem;
+		font-style: italic;
 	}
 </style>
