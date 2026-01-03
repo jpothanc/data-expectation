@@ -1,0 +1,43 @@
+/**
+ * Shared page container styles
+ */
+.page-container {
+	max-width: 1600px;
+	margin: 0 auto;
+	padding: 1.25rem 2rem;
+	min-height: calc(100vh - 60px);
+}
+
+.error {
+	margin-top: 1.5rem;
+	padding: 1rem;
+	background-color: #7f1d1d;
+	border: 1px solid #dc2626;
+	border-radius: 0.5rem;
+	color: #fca5a5;
+}
+
+.loading {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	padding: 4rem 2rem;
+	gap: 1rem;
+}
+
+.spinner {
+	width: 3rem;
+	height: 3rem;
+	border: 3px solid #374151;
+	border-top-color: #34d399;
+	border-radius: 50%;
+	animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+	to {
+		transform: rotate(360deg);
+	}
+}
+

@@ -1,0 +1,43 @@
+{
+  "api": {
+    "baseUrl": "http://127.0.0.1:5006",
+    "endpoints": {
+      "validateStock": "/api/v1/rules/validate/stock",
+      "validateCustom": "/api/v1/rules/validate-custom",
+      "validateByMasterId": "/api/v1/rules/validate-by-masterid",
+      "rules": "/api/v1/rules/rules/stocks",
+      "rulesYaml": "/api/v1/rules/rules-yaml",
+      "combinedRuleNames": "/api/v1/rules/combined-rules",
+      "combinedRuleDetails": "/api/v1/rules/combined-rules-details",
+      "combinedRuleDetailsYaml": "/api/v1/rules/combined-rules-details-yaml",
+      "instrumentsByExchange": "/api/v1/instruments/exchange",
+      "instrumentById": "/api/v1/instruments/id",
+      "instrumentByRic": "/api/v1/instruments/ric",
+      "exchanges": "/api/v1/instruments/exchanges",
+      "validationGlobalView": "/api/v1/validation/global-view",
+      "validationHeatmap": "/api/v1/validation/heatmap",
+      "validationTreemap": "/api/v1/validation/treemap",
+      "validationRuleFailures": "/api/v1/validation/rule-failures",
+      "validationCombinedRule": "/api/v1/validation/combined-rule",
+      "validationExchangeResults": "/api/v1/validation/exchange",
+      "validationRegionalTrends": "/api/v1/validation/regional-trends",
+      "validationRegionDateResults": "/api/v1/validation/region-date"
+    }
+  },
+  "exchanges": [
+    {
+      "value": "XHKG",
+      "label": "XHKG - Hong Kong Exchange"
+    },
+    {
+      "value": "XTKS",
+      "label": "XTKS - Tokyo Stock Exchange"
+    },
+    {
+      "value": "XNSE",
+      "label": "XNSE - National Stock Exchange of India"
+    }
+  ],
+  "defaultExchange": "XHKG"
+}
+
