@@ -1,0 +1,12 @@
+@import 'tailwindcss';
+
+:global(body) {
+	background-color: #000000;
+	color: #e5e7eb;
+	margin: 0;
+	padding: 0;
+}
+
+:global(html) {
+	background-color: #000000;
+}

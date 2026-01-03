@@ -1,0 +1,23 @@
+/**
+ * Global CSS variables for theme support
+ * These are set dynamically by the theme store
+ */
+
+:root {
+	--color-primary: #10b981;
+	--color-primary-dark: #059669;
+	--color-primary-light: #34d399;
+	--color-secondary: #14b8a6;
+	--color-hover: #34d399;
+	--color-border: rgba(16, 185, 129, 0.1);
+	--color-border-medium: rgba(16, 185, 129, 0.3);
+	--color-border-strong: rgba(16, 185, 129, 0.5);
+	--gradient-primary: linear-gradient(135deg, #10b981 0%, #059669 100%);
+	--gradient-secondary: linear-gradient(135deg, #14b8a6 0%, #0d9488 100%);
+	--gradient-accent: linear-gradient(90deg, #10b981, #059669);
+	--gradient-hover: linear-gradient(90deg, transparent, rgba(16, 185, 129, 0.5), transparent);
+	--shadow-primary: rgba(16, 185, 129, 0.2);
+	--shadow-medium: rgba(16, 185, 129, 0.3);
+	--shadow-strong: rgba(16, 185, 129, 0.5);
+}
+
