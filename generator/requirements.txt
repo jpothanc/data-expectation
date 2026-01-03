@@ -1,0 +1,13 @@
+# Generator Project Dependencies
+
+# API client
+requests>=2.31.0
+
+# Configuration
+pyyaml>=6.0
+
+# Database support (optional - only needed if using --save-to-database)
+pyodbc>=4.0.0
+
+
+

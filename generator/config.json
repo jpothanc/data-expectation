@@ -1,0 +1,12 @@
+{
+  "api": {
+    "base_url": "http://127.0.0.1:5006"
+  },
+  "database": {
+    "connection_string_apac_uat": "DRIVER={ODBC Driver 17 for SQL Server};SERVER=JESS;Trusted_Connection=yes;Persist Security Info=False;Pooling=False;MultipleActiveResultSets=False;Encrypt=Yes;TrustServerCertificate=Yes;Application Name=SQL Server Management Studio;Command Timeout=0;DATABASE=Instruments;"
+  },
+  "logging": {
+    "log_dir": "log"
+  }
+}
+

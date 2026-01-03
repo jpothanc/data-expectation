@@ -1,0 +1,4 @@
+# This directory contains daily log files
+# Log files are automatically created with format: generator_YYYY-MM-DD.log
+# Old log files are automatically rotated and kept for 30 days
+

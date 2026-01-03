@@ -1,0 +1,37 @@
+# Regional configuration for batch validation
+# Each region contains product types, which in turn contain lists of exchanges
+
+apac:
+  stock:
+    - XHKG  # Hong Kong Stock Exchange
+    - XNSE  # National Stock Exchange of India
+    - XTKS  # Tokyo Stock Exchange
+  option:
+    - XHKG
+    - XTKS
+  future:
+    - XHKG
+    - XTKS
+
+emea:
+  stock:
+    - XLON  # London Stock Exchange (example)
+    - XPAR  # Euronext Paris (example)
+  option:
+    - XLON
+    - XPAR
+  future:
+    - XLON
+    - XPAR
+
+us:
+  stock:
+    - XNYS  # New York Stock Exchange (example)
+    - XNAS  # NASDAQ (example)
+  option:
+    - XNYS
+    - XNAS
+  future:
+    - XNYS
+    - XNAS
+

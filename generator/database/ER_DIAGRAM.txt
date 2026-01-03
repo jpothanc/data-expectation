@@ -1,0 +1,172 @@
+================================================================================
+DATABASE ER DIAGRAM - GENERATOR PROJECT
+Database: RubyUsers (SQL Server)
+================================================================================
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        GeValidationRuns (Parent Table)                      │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ PK  RunId                    BIGINT IDENTITY(1,1)                           │
+│     RunTimestamp             DATETIME2 NOT NULL DEFAULT GETDATE()            │
+│     Region                   NVARCHAR(50) NOT NULL                           │
+│     ProductType              NVARCHAR(50) NOT NULL                           │
+│     Exchange                 NVARCHAR(50) NOT NULL                            │
+│     Success                  BIT NOT NULL                                    │
+│     TotalExpectations        INT NOT NULL                                    │
+│     SuccessfulExpectations   INT NOT NULL                                    │
+│     FailedExpectations       INT NOT NULL                                    │
+│     RulesApplied             NVARCHAR(100) NULL                               │
+│                              (base, exchange, custom, combined)              │
+│     CustomRuleNames          NVARCHAR(MAX) NULL                               │
+│                              (comma-separated list)                          │
+│     ApiUrl                   NVARCHAR(255) NULL                              │
+│     ExecutionDurationMs      INT NULL                                        │
+└─────────────────────────────────────────────────────────────────────────────┘
+                              │
+                              │ 1:N (CASCADE DELETE)
+                              │
+        ┌─────────────────────┴─────────────────────┐
+        │                                             │
+        ▼                                             ▼
+┌───────────────────────────────┐    ┌──────────────────────────────────────┐
+│   GeExpectationResults        │    │  GeValidationRulesApplied           │
+├───────────────────────────────┤    ├──────────────────────────────────────┤
+│ PK  ResultId                  │    │ PK  RuleAppliedId                    │
+│ FK  RunId → GeValidationRuns │    │ FK  RunId → GeValidationRuns         │
+│     ColumnName                │    │     RuleName                         │
+│     ExpectationType           │    │     RuleType                          │
+│     Success                   │    │          (base, product_type,        │
+│     ElementCount              │    │           exchange, custom,          │
+│     UnexpectedCount           │    │           combined)                   │
+│     UnexpectedPercent         │    │     RuleLevel                         │
+│          DECIMAL(5,2)         │    │          (root, product_type,         │
+│     MissingCount              │    │           exchange)                   │
+│     MissingPercent            │    │     RuleSource                        │
+│          DECIMAL(5,2)         │    │          (file path)                  │
+│     ResultDetails             │    └──────────────────────────────────────┘
+│          NVARCHAR(MAX)        │
+│          (JSON data)          │
+└───────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    GeValidationSummary (Independent)                        │
+│                    Denormalized summary table                                │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ PK  SummaryId                BIGINT IDENTITY(1,1)                           │
+│     RunTimestamp             DATETIME2 NOT NULL                             │
+│     Region                   NVARCHAR(50) NOT NULL                          │
+│     ProductType              NVARCHAR(50) NOT NULL                          │
+│     Exchange                 NVARCHAR(50) NOT NULL                           │
+│     TotalRuns                INT NOT NULL DEFAULT 1                         │
+│     SuccessfulRuns            INT NOT NULL DEFAULT 0                         │
+│     FailedRuns                INT NOT NULL DEFAULT 0                         │
+│     AvgTotalExpectations      DECIMAL(10,2) NULL                            │
+│     AvgFailedExpectations     DECIMAL(10,2) NULL                            │
+│     AvgSuccessRate            DECIMAL(5,2) NULL                             │
+│     TimeBucket                NVARCHAR(20) NOT NULL                          │
+│                              (YYYY-MM-DD-HH or YYYY-MM-DD)                  │
+│     BucketType                NVARCHAR(20) NOT NULL                         │
+│                              (hourly, daily, weekly, monthly)               │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    GeColumnTrends (Independent)                              │
+│                    Column-level trend tracking                               │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ PK  TrendId                  BIGINT IDENTITY(1,1)                           │
+│     RunTimestamp             DATETIME2 NOT NULL                              │
+│     Exchange                 NVARCHAR(50) NOT NULL                          │
+│     ColumnName               NVARCHAR(255) NOT NULL                          │
+│     ExpectationType          NVARCHAR(100) NOT NULL                         │
+│     SuccessRate               DECIMAL(5,2) NOT NULL                          │
+│     FailureCount              INT NOT NULL DEFAULT 0                        │
+│     TotalOccurrences          INT NOT NULL DEFAULT 1                        │
+│     TimeBucket                NVARCHAR(20) NOT NULL                          │
+│     BucketType                NVARCHAR(20) NOT NULL                          │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+================================================================================
+RELATIONSHIPS SUMMARY
+================================================================================
+
+1. GeValidationRuns (1) ──→ (N) GeExpectationResults
+   - Foreign Key: GeExpectationResults.RunId → GeValidationRuns.RunId
+   - Cascade Delete: ON DELETE CASCADE
+   - One validation run can have many expectation results
+
+2. GeValidationRuns (1) ──→ (N) GeValidationRulesApplied
+   - Foreign Key: GeValidationRulesApplied.RunId → GeValidationRuns.RunId
+   - Cascade Delete: ON DELETE CASCADE
+   - One validation run can have many rules applied
+
+3. GeValidationSummary
+   - Independent table (no foreign keys)
+   - Denormalized for fast trend queries
+
+4. GeColumnTrends
+   - Independent table (no foreign keys)
+   - Tracks column-level trends over time
+
+================================================================================
+KEY INDEXES
+================================================================================
+
+GeValidationRuns:
+  - idx_RunTimestamp
+  - idx_RegionExchange (Region, Exchange)
+  - idx_ProductType
+  - idx_Exchange
+  - idx_Success
+  - idx_RegionTimestamp (Region, RunTimestamp)
+  - idx_ExchangeTimestamp (Exchange, RunTimestamp)
+
+GeExpectationResults:
+  - idx_RunId (FK)
+  - idx_ColumnName
+  - idx_ExpectationType
+  - idx_Success
+  - idx_ColumnExpectation (ColumnName, ExpectationType)
+  - idx_RunSuccess (RunId, Success)
+
+GeValidationRulesApplied:
+  - idx_RunId (FK)
+  - idx_RuleName
+  - idx_RuleType
+  - idx_RuleLevel
+  - idx_RunRuleType (RunId, RuleType)
+
+GeValidationSummary:
+  - idx_TimeBucket
+  - idx_RegionExchangeBucket (Region, Exchange, TimeBucket)
+  - idx_ExchangeBucket (Exchange, TimeBucket)
+  - idx_BucketType
+  - idx_Timestamp
+
+GeColumnTrends:
+  - idx_ExchangeColumn (Exchange, ColumnName)
+  - idx_ColumnExpectation (ColumnName, ExpectationType)
+  - idx_TimeBucket
+  - idx_ExchangeBucket (Exchange, TimeBucket)
+
+================================================================================
+DATABASE VIEWS
+================================================================================
+
+1. v_latest_validations
+   - Latest validation results per exchange (last 24 hours)
+   - Joins GeValidationRuns with GeExpectationResults
+
+2. v_exchange_success_rates
+   - Exchange success rates over time
+   - Aggregated from GeValidationRuns
+
+3. v_column_failure_trends
+   - Column failure trends by date
+   - Joins GeExpectationResults with GeValidationRuns
+
+4. v_rule_effectiveness
+   - Rule effectiveness analysis
+   - Joins GeValidationRulesApplied with GeValidationRuns
+
+================================================================================
+
