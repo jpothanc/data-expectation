@@ -140,3 +140,4 @@ def runner(app):
     """Create test CLI runner for Flask app."""
     return app.test_cli_runner()
 
+

@@ -43,3 +43,4 @@ class TestApp:
         data = response.get_json()
         assert 'swagger' in data or 'openapi' in data
 
+
