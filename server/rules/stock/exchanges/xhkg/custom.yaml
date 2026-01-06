@@ -4,7 +4,7 @@
 # Priority order:
 # 1. Exchange-level custom.yaml (this file) - HIGHEST PRIORITY
 # 2. Exchange-level combined.yaml
-# 3. Product type custom.yaml (rules/stock/custom.yaml)
+# 3. Product type custom.yaml (config/rules/stock/custom.yaml)
 # 4. Product type combined.yaml
 # 5. Root custom.yaml
 # 6. Root combined.yaml
@@ -26,7 +26,7 @@ ric_format_validation:
   - type: ExpectColumnValuesToNotBeNull
     column: RIC
 
-min_tradable_quantity_validation:
+min_tradable_quantity_validation1:
   - type: ExpectColumnValuesToNotBeNull
     column: MinTradableQuantity
   - type: ExpectColumnValuesToBeBetween

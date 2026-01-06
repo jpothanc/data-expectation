@@ -103,9 +103,8 @@ export async function validateCombinedRule(
 }
 
 export async function getInstrumentsByExchange(exchange: string, productType: string = 'stock'): Promise<any[]> {
-	const endpoint = `/api/v1/instruments/exchange/${exchange}`;
+	const endpoint = `${API_ENDPOINTS.instrumentsByExchange}/${exchange}`;
 	const url = `${API_BASE_URL}${endpoint}?product_type=${productType}`;
-	
 	const response = await fetch(url);
 	
 	if (!response.ok) {
@@ -118,7 +117,6 @@ export async function getInstrumentsByExchange(exchange: string, productType: st
 
 export async function getInstrumentById(instrumentId: string, exchange?: string, productType: string = 'stock'): Promise<any[]> {
 	const endpoint = `${API_ENDPOINTS.instrumentById}/${encodeURIComponent(instrumentId)}`;
-	
 	let url = `${API_BASE_URL}${endpoint}?product_type=${productType}`;
 	if (exchange) {
 		url += `&exchange=${encodeURIComponent(exchange)}`;
@@ -135,7 +133,7 @@ export async function getInstrumentById(instrumentId: string, exchange?: string,
 }
 
 export async function getInstrumentByRic(ric: string, exchange?: string, productType: string = 'stock'): Promise<any[]> {
-	const endpoint = `/api/v1/instruments/ric/${encodeURIComponent(ric)}`;
+	const endpoint = `${API_ENDPOINTS.instrumentByRic}/${encodeURIComponent(ric)}`;
 	let url = `${API_BASE_URL}${endpoint}?product_type=${productType}`;
 	if (exchange) {
 		url += `&exchange=${encodeURIComponent(exchange)}`;
@@ -214,8 +212,8 @@ export async function validateByMasterId(
 	return await response.json();
 }
 
-export async function getExchanges(): Promise<Exchange[]> {
-	const url = `${API_BASE_URL}${API_ENDPOINTS.exchanges}`;
+export async function getExchanges(productType: string = 'stock'): Promise<Exchange[]> {
+	const url = `${API_BASE_URL}${API_ENDPOINTS.exchanges}?product_type=${productType}`;
 	const response = await fetch(url);
 	
 	if (!response.ok) {
@@ -224,48 +222,12 @@ export async function getExchanges(): Promise<Exchange[]> {
 	
 	const result = await response.json();
 	
-	// Handle different response formats
+	// API now returns simple array of strings: ["XHKG", "XNSE", ...]
 	if (Array.isArray(result)) {
-		return result.map((item: any) => {
-			if (typeof item === 'string') {
-				return { value: item, label: item };
-			}
-			return {
-				value: item.value || item.code || item.exchange || String(item),
-				label: item.label || item.name || item.value || item.code || item.exchange || String(item)
-			};
-		});
-	}
-	
-	// Handle object with exchanges array
-	if (result && Array.isArray(result.exchanges)) {
-		return result.exchanges.map((item: any) => {
-			if (typeof item === 'string') {
-				return { value: item, label: item };
-			}
-			// Handle the API response format: { exchange: "XHKG", data_source: "...", available: true }
-			return {
-				value: item.exchange || item.value || item.code || String(item),
-				label: item.label || item.name || item.exchange || item.value || item.code || String(item)
-			};
-		});
-	}
-	
-	// If result is an object but no exchanges array, try to find any array property
-	if (result && typeof result === 'object') {
-		for (const key in result) {
-			if (Array.isArray(result[key]) && key.toLowerCase().includes('exchange')) {
-				return result[key].map((item: any) => {
-					if (typeof item === 'string') {
-						return { value: item, label: item };
-					}
-					return {
-						value: item.exchange || item.value || item.code || String(item),
-						label: item.label || item.name || item.exchange || item.value || item.code || String(item)
-					};
-				});
-			}
-		}
+		return result.map((item: string) => ({
+			value: item,
+			label: item
+		}));
 	}
 	
 	return [];

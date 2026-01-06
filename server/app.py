@@ -146,9 +146,9 @@ def root():
         },
         "endpoints": {
             "instruments": {
-                "get_by_ric": "/api/v1/instruments/ric/{ric}?product_type={product_type}",
-                "get_by_id": "/api/v1/instruments/id/{instrument_id}?product_type={product_type}",
-                "get_by_exchange": "/api/v1/instruments/exchange/{exchange}?product_type={product_type}"
+                "get_by_ric": "/api/v1/instruments/ric/{ric}",
+                "get_by_id": "/api/v1/instruments/id/{instrument_id}",
+                "get_by_exchange": "/api/v1/instruments/exchange/{exchange}"
             },
             "rules": {
                 "validate": "/api/v1/rules/validate/{product_type}/{exchange}",
@@ -210,13 +210,6 @@ if __name__ == '__main__':
     os.environ['ENV'] = env
     
     init_logging()
-    
-    # Get server port from config, default to 5006 if not configured
-    from config.config_service import ConfigService
-    config_service = ConfigService()
-    server_config = config_service._config.get('server', {})
-    port = server_config.get('port', 5006)
-    
     # export()
-    app.run(debug=True, host='0.0.0.0', port=port)
+    app.run(debug=True, host='0.0.0.0', port=5006)
 

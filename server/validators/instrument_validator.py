@@ -15,7 +15,7 @@ class InstrumentValidator:
         
         Args:
             context_name: Name for the Great Expectations context
-            rules_dir: Optional path to rules directory. If None, reads from config.json or defaults to "rules"
+            rules_dir: Optional path to rules directory. If None, reads from config.json or defaults to "config/rules"
             exchange: Optional exchange code (e.g., 'HKG', 'NYSE') to apply exchange-specific rules
             product_type: Optional product type (e.g., 'stock', 'future', 'options') to apply product type-specific rules
         """
@@ -27,7 +27,7 @@ class InstrumentValidator:
                 rules_dir = config_service.get_rules_dir()
             except Exception:
                 # Fallback to default if config service fails
-                rules_dir = "rules"
+                rules_dir = "config/rules"
         
         # Initialize Great Expectations context
         # Use ephemeral mode to avoid file handle issues and conflicts

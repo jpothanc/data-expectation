@@ -176,17 +176,47 @@ def get_instrument_by_id(instrument_id):
 @instrument_api.route('/exchanges', methods=['GET'])
 def get_all_exchanges():
     """
-    Get all configured exchanges
+    Get all configured exchanges for a specific product type
     ---
     tags:
       - Instruments
+    parameters:
+      - name: product_type
+        in: query
+        type: string
+        required: false
+        default: stock
+        enum:
+          - stock
+          - option
+          - future
+        description: Product type to filter exchanges
     responses:
       200:
-        description: List of all configured exchanges
+        description: List of exchange codes for the specified product type
+      400:
+        description: Invalid product_type parameter
+      404:
+        description: No exchanges found for the specified product type
+      500:
+        description: Error retrieving exchanges
     """
+    product_type = request.args.get('product_type', 'stock').lower()
+    
+    # Validate product_type
+    if product_type not in ['stock', 'option', 'future']:
+        return jsonify({"error": f"Invalid product_type '{product_type}'. Must be 'stock', 'option', or 'future'."}), 400
+    
     try:
-        result = get_service('stock').get_all_exchanges()
-        return jsonify(result)
+        config_service = ConfigService()
+        exchange_map = config_service.get_csv_exchange_map(product_type)
+        
+        if not exchange_map:
+            return jsonify({"error": f"No exchanges found for product_type '{product_type}'"}), 404
+        
+        # Extract exchange codes (keys) from exchange_map
+        exchanges = list(exchange_map.keys())
+        return jsonify(exchanges)
     except Exception as e:
         logger.error(f"Error retrieving exchanges: {e}", exc_info=True)
         return jsonify({"error": f"Error retrieving exchanges: {str(e)}"}), 500

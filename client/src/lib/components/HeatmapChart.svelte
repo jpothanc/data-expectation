@@ -20,11 +20,6 @@
 	let loadingDetails = $state(false);
 	let errorDetailsError = $state<string | null>(null);
 	let showErrorModal = $state(false);
-	let hoveredCell = $state<{region: string, date: string, count: number} | null>(null);
-	let hoverTimeout: ReturnType<typeof setTimeout> | null = null;
-	let tooltipElement: HTMLElement | null = null;
-	let mouseX = $state(0);
-	let mouseY = $state(0);
 
 	function getFailureCount(run: any): number {
 		if (run.FailedExpectations !== undefined && run.FailedExpectations !== null) {
@@ -200,7 +195,6 @@
 	{:else}
 		<div class="heatmap-wrapper">
 			<div class="heatmap-header">
-				<div class="header-spacer"></div>
 				<div class="date-labels">
 					{#each sortedDates as date}
 						<div class="date-label" title={formatDateTime(date)}>
@@ -221,30 +215,8 @@
 								<div 
 									class="heatmap-cell {count > 0 ? 'clickable' : ''}"
 									style="background-color: {color};"
-									title="{region} - {formatDateTime(date)}: {count} {count === 1 ? 'failure' : 'failures'}"
+									title="{region} - {formatDate(date)}: {count} {count === 1 ? 'failure' : 'failures'}"
 									onclick={() => count > 0 && handleCellClick(region, date)}
-									onmouseenter={(e) => {
-										if (count > 0) {
-											mouseX = e.clientX;
-											mouseY = e.clientY;
-											if (hoverTimeout) clearTimeout(hoverTimeout);
-											hoverTimeout = setTimeout(() => {
-												hoveredCell = { region, date, count };
-											}, 300);
-										}
-									}}
-									onmousemove={(e) => {
-										if (count > 0 && hoveredCell) {
-											mouseX = e.clientX;
-											mouseY = e.clientY;
-										}
-									}}
-									onmouseleave={() => {
-										if (hoverTimeout) clearTimeout(hoverTimeout);
-										hoverTimeout = setTimeout(() => {
-											hoveredCell = null;
-										}, 100);
-									}}
 									role={count > 0 ? 'button' : undefined}
 									tabindex={count > 0 ? 0 : undefined}
 									onkeydown={(e) => {
@@ -271,7 +243,7 @@
 </div>
 
 {#if showErrorModal}
-	{@const formattedDate = selectedDate ? formatDateTime(selectedDate) : ''}
+	{@const formattedDate = selectedDate ? formatDate(selectedDate) : ''}
 	<ErrorDetailsPanel
 		isOpen={showErrorModal}
 		title={selectedRegion && formattedDate ? `${selectedRegion} - ${formattedDate}` : 'Error Details'}
@@ -282,21 +254,6 @@
 	/>
 {/if}
 
-{#if hoveredCell}
-	<div class="cell-tooltip" bind:this={tooltipElement} style="top: {mouseY + 10}px; left: {mouseX + 10}px;">
-		<div class="tooltip-content">
-			<div class="tooltip-header">
-				<strong>{hoveredCell.region}</strong>
-				<span class="tooltip-date">{formatDateTime(hoveredCell.date)}</span>
-			</div>
-			<div class="tooltip-body">
-				<span class="tooltip-count">{hoveredCell.count} {hoveredCell.count === 1 ? 'failure' : 'failures'}</span>
-				<span class="tooltip-hint">Click for details</span>
-			</div>
-		</div>
-	</div>
-{/if}
-
 
 <style>
 	.heatmap-container {
@@ -304,7 +261,6 @@
 		width: 100%;
 		overflow-x: auto;
 		overflow-y: visible;
-		-webkit-overflow-scrolling: touch;
 		/* Firefox scrollbar */
 		scrollbar-width: thin;
 		scrollbar-color: var(--color-primary-dark) #111827;
@@ -331,82 +287,40 @@
 	}
 
 	.heatmap-wrapper {
-		display: block;
-		width: max-content;
 		min-width: 100%;
 	}
 
 	.heatmap-header {
 		margin-bottom: 0.5rem;
-		position: sticky;
-		top: 0;
-		background-color: #111827;
-		z-index: 5;
-		padding-bottom: 0.5rem;
-		display: flex;
-		align-items: flex-start;
-		width: max-content;
-		min-width: 100%;
-	}
-
-	.header-spacer {
-		width: 160px;
-		flex-shrink: 0;
-		position: sticky;
-		left: 0;
-		background-color: #111827;
-		z-index: 6;
 	}
 
 	.date-labels {
 		display: flex;
 		gap: 2px;
+		margin-left: 160px; /* Match region label width */
 		padding-left: 0.75rem;
-		flex-shrink: 0;
-		width: auto;
 	}
 
 	.date-label {
-		font-size: 0.75rem;
+		font-size: 0.875rem;
 		color: #9ca3af;
 		writing-mode: vertical-rl;
 		text-orientation: mixed;
-		width: 50px;
-		min-width: 50px;
+		min-width: 30px;
 		text-align: center;
 		padding: 0.5rem 0;
-		flex-shrink: 0;
-		white-space: pre-line;
-		line-height: 1.3;
-	}
-
-	.date-label .date-part {
-		font-weight: 500;
-		display: block;
-	}
-
-	.date-label .time-part {
-		font-size: 0.625rem;
-		color: #6b7280;
-		font-weight: 400;
-		display: block;
-		margin-top: 0.2rem;
 	}
 
 	.heatmap-body {
 		display: flex;
 		flex-direction: column;
 		gap: 2px;
-		width: fit-content;
-		min-width: 100%;
 	}
 
 	.heatmap-row {
 		display: flex;
 		align-items: center;
 		gap: 0.5rem;
-		width: fit-content;
-		min-width: 100%;
 	}
 
 	.region-label {
@@ -417,23 +331,15 @@
 		text-align: right;
 		padding-right: 1.25rem;
 		flex-shrink: 0;
-		position: sticky;
-		left: 0;
-		background-color: #111827;
-		z-index: 2;
-		padding-left: 0.5rem;
-		margin-left: -0.5rem;
 	}
 
 	.heatmap-cells {
 		display: flex;
 		gap: 2px;
-		flex-shrink: 0;
-		width: auto;
+		flex: 1;
 	}
 
 	.heatmap-cell {
-		width: 40px;
 		min-width: 40px;
 		height: 60px;
 		border-radius: 4px;
@@ -442,7 +348,6 @@
 		justify-content: center;
 		transition: transform 0.1s, box-shadow 0.1s;
 		border: 1px solid rgba(55, 65, 81, 0.5);
-		flex-shrink: 0;
 	}
 
 	.heatmap-cell.clickable {
@@ -506,71 +411,5 @@
 		background: rgba(55, 65, 81, 0.3);
 		border-radius: 0.5rem;
 		border: 1px dashed #374151;
-	}
-
-	.cell-tooltip {
-		position: fixed;
-		z-index: 100000;
-		pointer-events: none;
-		animation: tooltipFadeIn 0.2s ease-out;
-	}
-
-	@keyframes tooltipFadeIn {
-		from {
-			opacity: 0;
-			transform: translateY(-5px);
-		}
-		to {
-			opacity: 1;
-			transform: translateY(0);
-		}
-	}
-
-	.tooltip-content {
-		background-color: #1f2937;
-		border: 1px solid #374151;
-		border-radius: 0.375rem;
-		padding: 0.75rem;
-		box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
-		min-width: 200px;
-		max-width: 300px;
-	}
-
-	.tooltip-header {
-		display: flex;
-		flex-direction: column;
-		gap: 0.25rem;
-		margin-bottom: 0.5rem;
-		padding-bottom: 0.5rem;
-		border-bottom: 1px solid #374151;
-	}
-
-	.tooltip-header strong {
-		color: #ffffff;
-		font-size: 0.875rem;
-		font-weight: 600;
-	}
-
-	.tooltip-date {
-		color: #9ca3af;
-		font-size: 0.75rem;
-	}
-
-	.tooltip-body {
-		display: flex;
-		flex-direction: column;
-		gap: 0.25rem;
-	}
-
-	.tooltip-count {
-		color: #ef4444;
-		font-size: 0.875rem;
-		font-weight: 600;
-	}
-
-	.tooltip-hint {
-		color: #6b7280;
-		font-size: 0.6875rem;
-		font-style: italic;
 	}
 </style>

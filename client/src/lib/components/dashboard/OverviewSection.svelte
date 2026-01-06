@@ -18,7 +18,7 @@
 		{ label: 'Total Regions', value: globalViewData.length }
 	]}>
 		{#if globalViewData.length > 0}
-			<StackedBarChart data={globalViewData} height="300px" />
+			<StackedBarChart data={globalViewData} height="150px" />
 		{:else}
 			<div class="no-data-message">
 				<p>No data available</p>

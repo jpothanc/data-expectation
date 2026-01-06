@@ -82,7 +82,7 @@ class ConfigService:
         Returns:
             Dictionary mapping exchange codes to CSV filenames (flattened from regions)
         """
-        # Normalize product type (e.g., 'stocks' -> 'stock', 'option' -> 'options')
+        # Normalize product type (e.g., 'stocks' -> 'stock', 'options' -> 'option')
         normalized_type = self._normalize_product_type(product_type)
         
         csv_config = self.get_csv_config()
@@ -137,7 +137,8 @@ class ConfigService:
     def _normalize_product_type(product_type):
         """
         Normalize product type to match config.json keys.
-        Converts 'stocks' -> 'stock', 'option' -> 'options', etc.
+        Converts 'stocks' -> 'stock', 'options' -> 'option', etc.
+        Note: config.json uses 'option' (singular), not 'options'
         """
         if not product_type:
             return 'stock'
@@ -145,8 +146,9 @@ class ConfigService:
         # Handle common variations
         if normalized == 'stocks':
             return 'stock'
-        if normalized == 'option':
-            return 'options'
+        if normalized == 'options':
+            return 'option'
+        # 'option' stays as 'option' (matches config.json)
         return normalized
     
     def get_database_config(self):
@@ -172,9 +174,9 @@ class ConfigService:
         Get the configured rules directory path.
         
         Returns:
-            str: Path to the rules directory (defaults to "rules" if not configured)
+            str: Path to the rules directory (defaults to "config/rules" if not configured)
         """
-        return self._config.get('rules', {}).get('rules_dir', 'rules')
+        return self._config.get('rules', {}).get('rules_dir', 'config/rules')
     
     def get_data_folder(self):
         """

@@ -12,8 +12,8 @@
 		<ThemeSelector />
 	</div>
 	<div class="hero-section">
-		<h1 class="main-title">Data Expectations</h1>
-		<p class="subtitle">Reference Data Management Platform</p>
+		<h1 class="main-title">Instruments GE</h1>
+		<p class="subtitle">Financial Instruments Management Platform</p>
 	</div>
 
 	<div class="navigation-grid">

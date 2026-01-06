@@ -309,7 +309,7 @@
 						position: 'bottom',
 						labels: sortedDates.map(date => {
 							const d = new Date(date);
-							return d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+							return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 						}),
 						grid: {
 							color: 'rgba(55, 65, 81, 0.3)',

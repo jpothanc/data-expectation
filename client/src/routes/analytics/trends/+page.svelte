@@ -215,7 +215,7 @@
 		border: none;
 		padding: 0.5rem 1rem;
 		color: #9ca3af;
-		font-size: 0.875rem;
+		font-size: 0.75rem;
 		font-weight: 500;
 		cursor: pointer;
 		transition: all 0.2s;

@@ -43,9 +43,6 @@
   "database": {
     "connection_string_apac_uat": "DRIVER={ODBC Driver 17 for SQL Server};SERVER=(localdb)\\MSSQLLocalDB;DATABASE=Instruments;Trusted_Connection=yes;"
   },
-  "server": {
-    "port": 5006
-  },
   "logging": {
     "log_folder": "log",
     "log_file": "data-ex-api.log",
@@ -53,7 +50,7 @@
     "format": "%(asctime)s - %(levelname)s - %(message)s"
   },
   "rules": {
-    "rules_dir": "rules"
+    "rules_dir": "config/rules"
   },
   "data": {
     "data_folder": "data"

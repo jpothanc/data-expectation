@@ -81,16 +81,16 @@
 	let exchangesFetched = $state(false);
 	$effect(() => {
 		// Only fetch if not already initialized and not currently loading
-		if (!exchangesStore.initialized && !exchangesStore.loading && !exchangesFetched) {
+		if (!exchangesStore.isInitialized(productType) && !exchangesStore.isLoading(productType) && !exchangesFetched) {
 			exchangesFetched = true;
-			fetchExchanges();
+			fetchExchanges(productType);
 		}
 	});
 	
 	// Set default exchange when exchanges are loaded (separate effect to avoid loop)
 	$effect(() => {
-		if (exchangesStore.initialized && exchanges.length > 0 && !exchanges.find(e => e.value === selectedExchange)) {
-			selectedExchange = getDefaultExchange();
+		if (exchangesStore.isInitialized(productType) && exchanges.length > 0 && !exchanges.find(e => e.value === selectedExchange)) {
+			selectedExchange = getDefaultExchange(productType);
 		}
 	});
 

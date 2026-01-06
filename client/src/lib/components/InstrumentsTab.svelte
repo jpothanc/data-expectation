@@ -5,7 +5,6 @@
 	import { exchangesStore, fetchExchanges, getDefaultExchange } from '../stores/exchanges.svelte';
 	import DataTable from './DataTable.svelte';
 	import Select from './Select.svelte';
-	import InstrumentDetailModal from './InstrumentDetailModal.svelte';
 
 	interface Props {
 		productType?: 'stock' | 'future' | 'option';
@@ -19,12 +18,10 @@
 	let loading = $state(false);
 	let error = $state<string | null>(null);
 	let instrumentsData = $state<any[] | null>(null);
-	let selectedInstrument = $state<Record<string, any> | null>(null);
-	let showDetailModal = $state(false);
 
 	// Use shared exchanges store (direct access to reactive state)
-	const exchanges = $derived.by(() => exchangesStore.exchanges);
-	const loadingExchanges = $derived.by(() => exchangesStore.loading);
+	const exchanges = $derived.by(() => exchangesStore.getExchanges(productType));
+	const loadingExchanges = $derived.by(() => exchangesStore.isLoading(productType));
 
 	async function fetchInstrumentsByExchange() {
 		loading = true;
@@ -85,34 +82,20 @@
 		return convertInstrumentsToTableData(instrumentsData);
 	}
 
-	function handleRowClick(row: Record<string, any>, index: number) {
-		// Use index to get the original instrument data
-		// This is more reliable than matching by fields since the table data is transformed
-		if (instrumentsData && instrumentsData[index]) {
-			selectedInstrument = instrumentsData[index];
-			showDetailModal = true;
-		}
-	}
-
-	function closeDetailModal() {
-		showDetailModal = false;
-		selectedInstrument = null;
-	}
-
 	// Fetch exchanges on mount (only once)
 	let exchangesFetched = $state(false);
 	$effect(() => {
 		// Only fetch if not already initialized and not currently loading
-		if (!exchangesStore.initialized && !exchangesStore.loading && !exchangesFetched) {
+		if (!exchangesStore.isInitialized(productType) && !exchangesStore.isLoading(productType) && !exchangesFetched) {
 			exchangesFetched = true;
-			fetchExchanges();
+			fetchExchanges(productType);
 		}
 	});
 	
 	// Set default exchange when exchanges are loaded (separate effect to avoid loop)
 	$effect(() => {
-		if (exchangesStore.initialized && exchanges.length > 0 && !exchanges.find(e => e.value === instrumentExchange)) {
-			instrumentExchange = getDefaultExchange();
+		if (exchangesStore.isInitialized(productType) && exchanges.length > 0 && !exchanges.find(e => e.value === instrumentExchange)) {
+			instrumentExchange = getDefaultExchange(productType);
 		}
 	});
 </script>
@@ -203,7 +186,6 @@
 				data={tableData.data}
 				title="Instruments ({tableData.data.length})"
 				ricColumn="RIC"
-				onRowClick={handleRowClick}
 			/>
 		{:else}
 			<div class="info-message">
@@ -211,12 +193,6 @@
 			</div>
 		{/if}
 	{/if}
-
-	<InstrumentDetailModal 
-		open={showDetailModal} 
-		instrument={selectedInstrument} 
-		onClose={closeDetailModal} 
-	/>
 </div>
 
 <style>

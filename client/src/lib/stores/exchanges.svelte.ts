@@ -3,51 +3,52 @@ import type { Exchange } from '../types';
 import { DEFAULT_EXCHANGE } from '../constants';
 
 /**
- * Shared reactive state for exchanges
+ * Shared reactive state for exchanges per product type
  * Using module-level reactive variables for Svelte 5 compatibility
  */
-let exchanges = $state<Exchange[]>([]);
-let loading = $state(false);
+let exchangesCache = $state<Record<string, Exchange[]>>({});
+let loadingCache = $state<Record<string, boolean>>({});
+let initializedCache = $state<Record<string, boolean>>({});
 let error = $state<string | null>(null);
-let initialized = $state(false);
 
 /**
- * Fetches exchanges from the API
- * Caches the result to avoid redundant API calls
+ * Fetches exchanges from the API for a specific product type
+ * Caches the result per product type to avoid redundant API calls
  */
-export async function fetchExchanges(): Promise<void> {
-	// Return cached data if already initialized (even if empty, to prevent infinite loops)
-	if (initialized) {
+export async function fetchExchanges(productType: string = 'stock'): Promise<void> {
+	// Return cached data if already initialized for this product type
+	if (initializedCache[productType]) {
 		return;
 	}
 
-	// Prevent concurrent fetches
-	if (loading) {
+	// Prevent concurrent fetches for same product type
+	if (loadingCache[productType]) {
 		return;
 	}
 
-	loading = true;
+	loadingCache[productType] = true;
 	error = null;
 
 	try {
-		const fetchedExchanges = await getExchanges();
-		exchanges = fetchedExchanges;
-		initialized = true;
+		const fetchedExchanges = await getExchanges(productType);
+		exchangesCache[productType] = fetchedExchanges;
+		initializedCache[productType] = true;
 	} catch (err) {
-		console.error('Failed to fetch exchanges:', err);
+		console.error(`Failed to fetch exchanges for ${productType}:`, err);
 		error = err instanceof Error ? err.message : 'Failed to fetch exchanges';
-		exchanges = [];
-		initialized = true; // Mark as initialized even on error to prevent infinite retries
+		exchangesCache[productType] = [];
+		initializedCache[productType] = true; // Mark as initialized even on error to prevent infinite retries
 	} finally {
-		loading = false;
+		loadingCache[productType] = false;
 	}
 }
 
 /**
- * Gets the default exchange value
+ * Gets the default exchange value for a specific product type
  * Returns the first exchange if available, otherwise falls back to DEFAULT_EXCHANGE
  */
-export function getDefaultExchange(): string {
+export function getDefaultExchange(productType: string = 'stock'): string {
+	const exchanges = exchangesCache[productType] || [];
 	if (exchanges.length > 0) {
 		return exchanges[0].value;
 	}
@@ -55,45 +56,52 @@ export function getDefaultExchange(): string {
 }
 
 /**
- * Finds an exchange by value
+ * Finds an exchange by value for a specific product type
  */
-export function findExchangeByValue(value: string): Exchange | undefined {
+export function findExchangeByValue(value: string, productType: string = 'stock'): Exchange | undefined {
+	const exchanges = exchangesCache[productType] || [];
 	return exchanges.find((e) => e.value === value);
 }
 
 /**
- * Gets exchange label by value
+ * Gets exchange label by value for a specific product type
  */
-export function getExchangeLabel(value: string): string {
-	const exchange = findExchangeByValue(value);
+export function getExchangeLabel(value: string, productType: string = 'stock'): string {
+	const exchange = findExchangeByValue(value, productType);
 	return exchange?.label || value;
 }
 
 /**
- * Resets the store (useful for testing or forced refresh)
+ * Resets the store for a specific product type (useful for testing or forced refresh)
  */
-export function resetExchanges(): void {
-	exchanges = [];
-	loading = false;
+export function resetExchanges(productType?: string): void {
+	if (productType) {
+		exchangesCache[productType] = [];
+		loadingCache[productType] = false;
+		initializedCache[productType] = false;
+	} else {
+		exchangesCache = {};
+		loadingCache = {};
+		initializedCache = {};
+	}
 	error = null;
-	initialized = false;
 }
 
 /**
  * Exported store object for reactive access
  */
 export const exchangesStore = {
-	get exchanges() {
-		return exchanges;
+	getExchanges(productType: string = 'stock') {
+		return exchangesCache[productType] || [];
 	},
-	get loading() {
-		return loading;
+	isLoading(productType: string = 'stock') {
+		return loadingCache[productType] || false;
+	},
+	isInitialized(productType: string = 'stock') {
+		return initializedCache[productType] || false;
 	},
 	get error() {
 		return error;
-	},
-	get initialized() {
-		return initialized;
 	},
 	fetch: fetchExchanges,
 	getDefaultExchange,

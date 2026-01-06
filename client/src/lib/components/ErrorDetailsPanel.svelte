@@ -74,7 +74,6 @@
 	function handleBackdropClick(e: MouseEvent) {
 		// Only close if clicking directly on the backdrop, not on child elements
 		if (e.target === e.currentTarget) {
-			e.stopPropagation();
 			onClose();
 		}
 	}
@@ -83,13 +82,7 @@
 		// Prevent backdrop from interfering with panel interactions
 		if (e.target === e.currentTarget) {
 			e.preventDefault();
-			e.stopPropagation();
 		}
-	}
-
-	function handlePanelMouseMove(e: MouseEvent) {
-		// Prevent mouse move events from bubbling up and causing flickering
-		e.stopPropagation();
 	}
 
 	function handleKeydown(e: KeyboardEvent) {
@@ -112,7 +105,7 @@
 
 {#if isOpen}
 	<div class="panel-backdrop" onclick={handleBackdropClick} onmousedown={handleBackdropMouseDown} role="dialog" aria-modal="true">
-		<div class="panel-container" onclick={(e) => e.stopPropagation()} onmousedown={(e) => e.stopPropagation()} onmousemove={handlePanelMouseMove}>
+		<div class="panel-container" onclick={(e) => e.stopPropagation()} onmousedown={(e) => e.stopPropagation()}>
 			<div class="panel-header">
 				<h2 class="panel-title">{title}</h2>
 				<button class="close-button" onclick={onClose} type="button" aria-label="Close">
@@ -265,7 +258,6 @@
 		backface-visibility: hidden;
 		-webkit-backface-visibility: hidden;
 		will-change: auto;
-		pointer-events: auto;
 	}
 
 	@keyframes fadeIn {
@@ -293,8 +285,6 @@
 		will-change: auto;
 		position: relative;
 		z-index: 1;
-		pointer-events: auto;
-		transform: translateZ(0);
 	}
 
 	@keyframes slideIn {
@@ -489,16 +479,11 @@
 		justify-content: space-between;
 		padding: 0.75rem;
 		cursor: pointer;
-		transition: background-color 0.15s ease;
-		will-change: background-color;
+		transition: background-color 0.2s;
 	}
 
 	.result-header:hover {
 		background-color: #1f2937;
-	}
-
-	.result-header:active {
-		background-color: #111827;
 	}
 
 	.result-info {

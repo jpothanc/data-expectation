@@ -95,23 +95,6 @@
 			}
 		});
 		
-		// Get date range
-		const firstDate = regionData.length > 0 && regionData[0].Date 
-			? new Date(regionData[0].Date) 
-			: null;
-		const lastDate = regionData.length > 0 && regionData[regionData.length - 1].Date
-			? new Date(regionData[regionData.length - 1].Date)
-			: null;
-
-		function formatDateTime(date: Date): string {
-			return date.toLocaleString('en-US', { 
-				month: 'short', 
-				day: 'numeric', 
-				hour: '2-digit', 
-				minute: '2-digit' 
-			});
-		}
-
 		return {
 			path,
 			failures,
@@ -120,10 +103,7 @@
 			avgSuccessRate: successRates.reduce((sum, r) => sum + r, 0) / successRates.length || 0,
 			trend: failures.length > 1 
 				? (failures[failures.length - 1] - failures[0]) / failures.length
-				: 0,
-			dateRange: firstDate && lastDate 
-				? `${formatDateTime(firstDate)} - ${formatDateTime(lastDate)}`
-				: ''
+				: 0
 		};
 	}
 </script>
@@ -167,24 +147,19 @@
 						</svg>
 					</div>
 					<div class="sparkline-footer">
-						<div class="footer-content">
-							<span class="trend-indicator {sparkData.trend >= 0 ? 'trending-up' : 'trending-down'}">
-								{#if sparkData.trend >= 0}
-									<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-									</svg>
-									Trending up
-								{:else}
-									<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6" />
-									</svg>
-									Trending down
-								{/if}
-							</span>
-							{#if sparkData.dateRange}
-								<span class="date-range">{sparkData.dateRange}</span>
+						<span class="trend-indicator {sparkData.trend >= 0 ? 'trending-up' : 'trending-down'}">
+							{#if sparkData.trend >= 0}
+								<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+								</svg>
+								Trending up
+							{:else}
+								<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6" />
+								</svg>
+								Trending down
 							{/if}
-						</div>
+						</span>
 					</div>
 				</div>
 			{/each}
@@ -297,22 +272,11 @@
 	}
 
 	.sparkline-footer {
+		display: flex;
+		justify-content: center;
 		margin-top: 0.5rem;
 		padding-top: 0.5rem;
 		border-top: 1px solid #374151;
-	}
-
-	.footer-content {
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		gap: 0.5rem;
-	}
-
-	.date-range {
-		font-size: 0.6875rem;
-		color: #6b7280;
-		text-align: center;
 	}
 
 	.trend-indicator {
