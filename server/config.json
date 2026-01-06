@@ -50,7 +50,7 @@
     "format": "%(asctime)s - %(levelname)s - %(message)s"
   },
   "rules": {
-    "rules_dir": "config/rules"
+    "rules_dir": "rules"
   },
   "data": {
     "data_folder": "data"

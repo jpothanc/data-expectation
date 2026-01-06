@@ -413,12 +413,14 @@ class ValidationAnalyticsService:
         
         return result
     
-    def get_regional_trends(self, days=30):
+    def get_regional_trends(self, days=30, product_type=None):
         """
         Get validation trend data by region over time, showing each individual run.
         
         Args:
             days: Number of days to look back (default: 30)
+            product_type: Optional product type filter ('stock', 'option', 'future'). 
+                         If None, returns all product types.
             
         Returns:
             Dictionary with regions as keys, each containing a list of data points:
@@ -428,7 +430,19 @@ class ValidationAnalyticsService:
                 "EMEA": [{Date, RunId, Exchange, ...}, ...]
             }
         """
-        query = """
+        # Build query with optional product_type filter
+        where_clause = "[RunTimestamp] >= DATEADD(DAY, -?, GETDATE())"
+        params = [days]
+        
+        if product_type:
+            # Normalize product type to match database values
+            normalized_type = product_type.lower().strip()
+            if normalized_type == 'options':
+                normalized_type = 'option'
+            where_clause += " AND LOWER([ProductType]) = LOWER(?)"
+            params.append(normalized_type)
+        
+        query = f"""
             SELECT 
                 [Region],
                 [RunTimestamp] as [Date],
@@ -452,10 +466,10 @@ class ValidationAnalyticsService:
                 CASE WHEN [Success] = 1 THEN 1 ELSE 0 END as [SuccessfulRuns],
                 1 as [TotalRuns]
             FROM [dbo].[GeValidationRuns]
-            WHERE [RunTimestamp] >= DATEADD(DAY, -?, GETDATE())
+            WHERE {where_clause}
             ORDER BY [Region], [RunTimestamp]
         """
-        raw_data = self._execute_query(query, (days,))
+        raw_data = self._execute_query(query, tuple(params))
         
         # Group data by region (normalize to uppercase for consistency)
         grouped_data = {}

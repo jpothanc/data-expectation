@@ -16,6 +16,7 @@
 	let isFetching = $state(false);
 	let regionalTrendsData = $state<RegionalTrendResponse | null>(null);
 	let activeTab = $state<'line' | 'heatmap' | 'sparklines' | 'stacked'>('line');
+	let selectedProductType = $state<'stock' | 'option' | 'future' | null>(null);
 
 	async function fetchData() {
 		if (isFetching) return;
@@ -26,7 +27,7 @@
 
 		try {
 			const result = await withTimeout(
-				getRegionalTrends(Math.max(days, 30)),
+				getRegionalTrends(Math.max(days, 30), selectedProductType || undefined),
 				API_TIMEOUTS.STANDARD
 			);
 			regionalTrendsData = result;
@@ -37,6 +38,11 @@
 			loading = false;
 			isFetching = false;
 		}
+	}
+
+	function handleProductTypeFilter(productType: 'stock' | 'option' | 'future' | null) {
+		selectedProductType = productType;
+		fetchData();
 	}
 
 
@@ -62,6 +68,37 @@
 		<h1 class="page-title">Trends</h1>
 	</div>
 	<PageControls days={days} onDaysChange={(d) => { days = d; fetchData(); }} onRefresh={fetchData} {loading} />
+	
+	<div class="product-type-filters">
+		<button 
+			class="product-filter-button {selectedProductType === null ? 'active' : ''}"
+			onclick={() => handleProductTypeFilter(null)}
+			type="button"
+		>
+			All
+		</button>
+		<button 
+			class="product-filter-button {selectedProductType === 'stock' ? 'active' : ''}"
+			onclick={() => handleProductTypeFilter('stock')}
+			type="button"
+		>
+			Stock
+		</button>
+		<button 
+			class="product-filter-button {selectedProductType === 'option' ? 'active' : ''}"
+			onclick={() => handleProductTypeFilter('option')}
+			type="button"
+		>
+			Option
+		</button>
+		<button 
+			class="product-filter-button {selectedProductType === 'future' ? 'active' : ''}"
+			onclick={() => handleProductTypeFilter('future')}
+			type="button"
+		>
+			Futures
+		</button>
+	</div>
 
 	{#if error}
 		<div class="error">
@@ -167,6 +204,41 @@
 		font-weight: 600;
 		color: #ffffff;
 		letter-spacing: -0.02em;
+	}
+
+	.product-type-filters {
+		display: flex;
+		gap: 0.5rem;
+		margin-bottom: 1.5rem;
+		padding: 0.5rem;
+		background-color: #111827;
+		border-radius: 0.5rem;
+		border: 1px solid rgba(52, 211, 153, 0.08);
+	}
+
+	.product-filter-button {
+		background-color: #1f2937;
+		border: 1px solid #374151;
+		color: #9ca3af;
+		padding: 0.5rem 1rem;
+		border-radius: 0.375rem;
+		font-size: 0.875rem;
+		font-weight: 500;
+		cursor: pointer;
+		transition: all 0.2s;
+		white-space: nowrap;
+	}
+
+	.product-filter-button:hover {
+		background-color: #374151;
+		color: #e5e7eb;
+		border-color: var(--color-primary-dark);
+	}
+
+	.product-filter-button.active {
+		background-color: var(--color-primary-dark);
+		color: #ffffff;
+		border-color: var(--color-primary-light);
 	}
 
 	.tabs-container {

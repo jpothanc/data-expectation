@@ -539,8 +539,11 @@ export interface RegionalTrendResponse {
 	chart_title: string;
 }
 
-export async function getRegionalTrends(days: number = 30): Promise<RegionalTrendResponse> {
-	const url = `${API_BASE_URL}${API_ENDPOINTS.validationRegionalTrends}?days=${days}`;
+export async function getRegionalTrends(days: number = 30, productType?: string): Promise<RegionalTrendResponse> {
+	let url = `${API_BASE_URL}${API_ENDPOINTS.validationRegionalTrends}?days=${days}`;
+	if (productType) {
+		url += `&product_type=${productType}`;
+	}
 	const response = await fetch(url);
 	
 	if (!response.ok) {

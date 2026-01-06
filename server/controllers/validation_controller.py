@@ -314,6 +314,15 @@ def get_regional_trends():
         type: integer
         default: 30
         description: Number of days to look back
+      - name: product_type
+        in: query
+        type: string
+        required: false
+        enum:
+          - stock
+          - option
+          - future
+        description: Filter by product type (stock, option, or future)
     responses:
       200:
         description: Regional trend data grouped by region
@@ -322,8 +331,9 @@ def get_regional_trends():
     """
     try:
         days = _get_int_param('days', 30)
+        product_type = request.args.get('product_type')
         service = get_analytics_service()
-        data = service.get_regional_trends(days=days)
+        data = service.get_regional_trends(days=days, product_type=product_type)
         return jsonify(_add_chart_metadata(data, "line", "Validation Trends by Region"))
     except Exception as e:
         return _handle_analytics_error(e, "regional trends")
