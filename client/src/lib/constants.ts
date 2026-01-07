@@ -21,6 +21,8 @@ export interface AppConfig {
 			validationHeatmap: string;
 			validationTreemap: string;
 			validationRuleFailures: string;
+			validationRuleFailuresByRegion: string;
+			validationExpectationFailuresByRegion: string;
 			validationCombinedRule: string;
 			validationExchangeResults: string;
 			validationRegionalTrends: string;

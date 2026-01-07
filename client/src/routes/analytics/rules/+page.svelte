@@ -2,11 +2,14 @@
 	import { goto } from '$app/navigation';
 	import {
 		getRuleFailures,
+		getRuleFailuresByRegion,
 		getCombinedRuleStats,
 		type RuleFailureData,
+		type RuleFailureByRegionData,
 		type CombinedRuleData
 	} from '$lib/services/api';
 	import BarChart from '$lib/components/BarChart.svelte';
+	import GroupedBarChart from '$lib/components/GroupedBarChart.svelte';
 	import ChartCard from '$lib/components/ChartCard.svelte';
 
 	let loading = $state(true);
@@ -16,6 +19,7 @@
 	let isFetching = $state(false);
 
 	let ruleFailuresData = $state<RuleFailureData[]>([]);
+	let ruleFailuresByRegionData = $state<RuleFailureByRegionData[]>([]);
 	let combinedRuleData = $state<CombinedRuleData | null>(null);
 
 	async function fetchData() {
@@ -37,6 +41,7 @@
 			
 			const results = await Promise.allSettled([
 				withTimeout(getRuleFailures(days, 20), 15000),
+				withTimeout(getRuleFailuresByRegion(days, 20), 15000),
 				withTimeout(getCombinedRuleStats(combinedRuleName, days), 15000).catch(() => null)
 			]);
 
@@ -46,9 +51,15 @@
 				console.error('Error fetching ruleFailures:', results[0].reason);
 			}
 
-			if (results[1].status === 'fulfilled' && results[1].value) {
-				if (results[1].value.TotalCount !== undefined) {
-					combinedRuleData = results[1].value;
+			if (results[1].status === 'fulfilled') {
+				ruleFailuresByRegionData = results[1].value.data;
+			} else {
+				console.error('Error fetching ruleFailuresByRegion:', results[1].reason);
+			}
+
+			if (results[2].status === 'fulfilled' && results[2].value) {
+				if (results[2].value.TotalCount !== undefined) {
+					combinedRuleData = results[2].value;
 				} else {
 					combinedRuleData = null;
 				}
@@ -132,6 +143,19 @@
 				{:else}
 					<div class="no-data-message">
 						<p>No rule failures found</p>
+					</div>
+				{/if}
+			</ChartCard>
+
+			<ChartCard title="Rule Failures by Region" stats={[
+				{ label: 'Regions', value: [...new Set(ruleFailuresByRegionData.map(d => d.Region))].length },
+				{ label: 'Rules', value: [...new Set(ruleFailuresByRegionData.map(d => d.RuleName))].length }
+			]}>
+				{#if ruleFailuresByRegionData.length > 0}
+					<GroupedBarChart data={ruleFailuresByRegionData} height="400px" />
+				{:else}
+					<div class="no-data-message">
+						<p>No rule failures by region found</p>
 					</div>
 				{/if}
 			</ChartCard>
@@ -296,6 +320,10 @@
 		display: grid;
 		grid-template-columns: repeat(2, 1fr);
 		gap: 1.5rem;
+	}
+
+	.charts-grid > :nth-child(3) {
+		grid-column: 1 / -1;
 	}
 
 	.no-data-message {

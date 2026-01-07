@@ -383,6 +383,23 @@ export interface RuleFailureData {
 	FailureRate: number;
 }
 
+export interface RuleFailureByRegionData {
+	Region: string;
+	RuleName: string;
+	TotalRuns: number;
+	FailureCount: number;
+	FailureRate: number;
+}
+
+export interface ExpectationFailureByRegionData {
+	Region: string;
+	ColumnName: string;
+	ExpectationType: string;
+	TotalRuns: number;
+	FailureCount: number;
+	FailureRate: number;
+}
+
 export interface CombinedRuleData {
 	TradableCount: number;
 	NotTradableCount: number;
@@ -432,6 +449,42 @@ export async function getTreemap(days: number = 7): Promise<{ data: TreemapData[
 
 export async function getRuleFailures(days: number = 7, limit: number = 20): Promise<{ data: RuleFailureData[]; chart_type: string; chart_title: string }> {
 	const url = `${API_BASE_URL}${API_ENDPOINTS.validationRuleFailures}?days=${days}&limit=${limit}`;
+	const response = await fetch(url);
+	
+	if (!response.ok) {
+		throw new Error(`HTTP error! status: ${response.status}`);
+	}
+	
+	return await response.json();
+}
+
+export async function getRuleFailuresByRegion(
+	days: number = 7, 
+	limit: number = 20, 
+	productType?: string
+): Promise<{ data: RuleFailureByRegionData[]; chart_type: string; chart_title: string }> {
+	let url = `${API_BASE_URL}${API_ENDPOINTS.validationRuleFailuresByRegion}?days=${days}&limit=${limit}`;
+	if (productType) {
+		url += `&product_type=${productType}`;
+	}
+	const response = await fetch(url);
+	
+	if (!response.ok) {
+		throw new Error(`HTTP error! status: ${response.status}`);
+	}
+	
+	return await response.json();
+}
+
+export async function getExpectationFailuresByRegion(
+	days: number = 7, 
+	limit: number = 20, 
+	productType?: string
+): Promise<{ data: ExpectationFailureByRegionData[]; chart_type: string; chart_title: string }> {
+	let url = `${API_BASE_URL}${API_ENDPOINTS.validationExpectationFailuresByRegion}?days=${days}&limit=${limit}`;
+	if (productType) {
+		url += `&product_type=${productType}`;
+	}
 	const response = await fetch(url);
 	
 	if (!response.ok) {

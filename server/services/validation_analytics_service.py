@@ -186,6 +186,100 @@ class ValidationAnalyticsService:
         """
         return self._execute_query(query, (limit, days))
     
+    def get_rule_failures_by_region(self, days=7, limit=20, product_type=None):
+        """
+        Get rule failure statistics grouped by region.
+        
+        Args:
+            days: Number of days to look back (default: 7)
+            limit: Maximum number of rules to return per region (default: 20)
+            product_type: Optional product type filter ('stock', 'option', 'future')
+            
+        Returns:
+            List of dicts with Region, RuleName, FailureCount, TotalRuns, FailureRate
+            Ordered by Region, then by FailureCount DESC
+        """
+        # Normalize product type if provided
+        normalized_product_type = None
+        if product_type:
+            normalized_product_type = product_type.lower().strip()
+            if normalized_product_type == 'options':
+                normalized_product_type = 'option'
+        
+        query = """
+            WITH RankedRules AS (
+                SELECT 
+                    UPPER(vr.[Region]) as [Region],
+                    vra.[RuleName],
+                    COUNT(*) as [TotalRuns],
+                    SUM(CASE WHEN vr.[Success] = 0 THEN 1 ELSE 0 END) as [FailureCount],
+                    CAST(SUM(CASE WHEN vr.[Success] = 0 THEN 1 ELSE 0 END) * 100.0 / COUNT(*) AS DECIMAL(5,2)) as [FailureRate],
+                    ROW_NUMBER() OVER (
+                        PARTITION BY UPPER(vr.[Region]) 
+                        ORDER BY SUM(CASE WHEN vr.[Success] = 0 THEN 1 ELSE 0 END) DESC
+                    ) as [Rank]
+                FROM [dbo].[GeValidationRulesApplied] vra
+                JOIN [dbo].[GeValidationRuns] vr ON vra.[RunId] = vr.[RunId]
+                WHERE vr.[RunTimestamp] >= DATEADD(DAY, -?, GETDATE())
+                  AND (? IS NULL OR LOWER(vr.[ProductType]) = LOWER(?))
+                GROUP BY UPPER(vr.[Region]), vra.[RuleName]
+                HAVING SUM(CASE WHEN vr.[Success] = 0 THEN 1 ELSE 0 END) > 0
+            )
+            SELECT [Region], [RuleName], [TotalRuns], [FailureCount], [FailureRate]
+            FROM RankedRules
+            WHERE [Rank] <= ?
+            ORDER BY [Region], [FailureCount] DESC
+        """
+        return self._execute_query(query, (days, normalized_product_type, normalized_product_type, limit))
+    
+    def get_expectation_failures_by_region(self, days=7, limit=20, product_type=None):
+        """
+        Get expectation failure statistics grouped by region, column name, and expectation type.
+        Shows which specific expectations (e.g., Currency + ExpectColumnValuesToBeInSet) failed how many times per region.
+        
+        Args:
+            days: Number of days to look back (default: 7)
+            limit: Maximum number of expectations to return per region (default: 20)
+            product_type: Optional product type filter ('stock', 'option', 'future')
+            
+        Returns:
+            List of dicts with Region, ColumnName, ExpectationType, FailureCount, TotalRuns, FailureRate
+            Ordered by Region, then by FailureCount DESC
+        """
+        # Normalize product type if provided
+        normalized_product_type = None
+        if product_type:
+            normalized_product_type = product_type.lower().strip()
+            if normalized_product_type == 'options':
+                normalized_product_type = 'option'
+        
+        query = """
+            WITH RankedExpectations AS (
+                SELECT 
+                    UPPER(vr.[Region]) as [Region],
+                    er.[ColumnName],
+                    er.[ExpectationType],
+                    COUNT(DISTINCT vr.[RunId]) as [TotalRuns],
+                    SUM(CASE WHEN er.[Success] = 0 THEN 1 ELSE 0 END) as [FailureCount],
+                    CAST(SUM(CASE WHEN er.[Success] = 0 THEN 1 ELSE 0 END) * 100.0 / COUNT(DISTINCT vr.[RunId]) AS DECIMAL(5,2)) as [FailureRate],
+                    ROW_NUMBER() OVER (
+                        PARTITION BY UPPER(vr.[Region]) 
+                        ORDER BY SUM(CASE WHEN er.[Success] = 0 THEN 1 ELSE 0 END) DESC
+                    ) as [Rank]
+                FROM [dbo].[GeExpectationResults] er
+                JOIN [dbo].[GeValidationRuns] vr ON er.[RunId] = vr.[RunId]
+                WHERE vr.[RunTimestamp] >= DATEADD(DAY, -?, GETDATE())
+                  AND (? IS NULL OR LOWER(vr.[ProductType]) = LOWER(?))
+                  AND er.[Success] = 0
+                GROUP BY UPPER(vr.[Region]), er.[ColumnName], er.[ExpectationType]
+            )
+            SELECT [Region], [ColumnName], [ExpectationType], [TotalRuns], [FailureCount], [FailureRate]
+            FROM RankedExpectations
+            WHERE [Rank] <= ?
+            ORDER BY [Region], [FailureCount] DESC
+        """
+        return self._execute_query(query, (days, normalized_product_type, normalized_product_type, limit))
+    
     def get_validation_results_by_exchange(self, exchange, days=7, limit=None):
         """
         Get validation results for a specific exchange.

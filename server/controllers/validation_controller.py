@@ -160,6 +160,95 @@ def get_rule_failures():
         return _handle_analytics_error(e, "rule failure data")
 
 
+@validation_api.route('/rule-failures-by-region', methods=['GET'])
+def get_rule_failures_by_region():
+    """
+    Get rule failure statistics grouped by region
+    ---
+    tags:
+      - Validation Analytics
+    parameters:
+      - name: days
+        in: query
+        type: integer
+        default: 7
+        description: Number of days to look back
+      - name: limit
+        in: query
+        type: integer
+        default: 20
+        description: Maximum number of rules to return per region
+      - name: product_type
+        in: query
+        type: string
+        required: false
+        enum:
+          - stock
+          - option
+          - future
+        description: Filter by product type (stock, option, or future)
+    responses:
+      200:
+        description: Rule failure statistics grouped by region
+      500:
+        description: Error retrieving data
+    """
+    try:
+        days = _get_int_param('days', 7)
+        limit = _get_int_param('limit', 20)
+        product_type = request.args.get('product_type')
+        service = get_analytics_service()
+        data = service.get_rule_failures_by_region(days=days, limit=limit, product_type=product_type)
+        return jsonify(_add_chart_metadata(data, "grouped_bar", "Rule Failures by Region"))
+    except Exception as e:
+        return _handle_analytics_error(e, "rule failures by region data")
+
+
+@validation_api.route('/expectation-failures-by-region', methods=['GET'])
+def get_expectation_failures_by_region():
+    """
+    Get expectation failure statistics grouped by region, column name, and expectation type
+    Shows which specific expectations (e.g., Currency + ExpectColumnValuesToBeInSet) failed per region
+    ---
+    tags:
+      - Validation Analytics
+    parameters:
+      - name: days
+        in: query
+        type: integer
+        default: 7
+        description: Number of days to look back
+      - name: limit
+        in: query
+        type: integer
+        default: 20
+        description: Maximum number of expectations to return per region
+      - name: product_type
+        in: query
+        type: string
+        required: false
+        enum:
+          - stock
+          - option
+          - future
+        description: Filter by product type (stock, option, or future)
+    responses:
+      200:
+        description: Expectation failure statistics grouped by region
+      500:
+        description: Error retrieving data
+    """
+    try:
+        days = _get_int_param('days', 7)
+        limit = _get_int_param('limit', 20)
+        product_type = request.args.get('product_type')
+        service = get_analytics_service()
+        data = service.get_expectation_failures_by_region(days=days, limit=limit, product_type=product_type)
+        return jsonify(_add_chart_metadata(data, "grouped_bar", "Expectation Failures by Region"))
+    except Exception as e:
+        return _handle_analytics_error(e, "expectation failures by region data")
+
+
 @validation_api.route('/exchange/<exchange>', methods=['GET'])
 def get_validation_results_by_exchange(exchange):
     """

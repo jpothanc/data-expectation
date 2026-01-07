@@ -18,6 +18,8 @@
       "validationHeatmap": "/api/v1/validation/heatmap",
       "validationTreemap": "/api/v1/validation/treemap",
       "validationRuleFailures": "/api/v1/validation/rule-failures",
+      "validationRuleFailuresByRegion": "/api/v1/validation/rule-failures-by-region",
+      "validationExpectationFailuresByRegion": "/api/v1/validation/expectation-failures-by-region",
       "validationCombinedRule": "/api/v1/validation/combined-rule",
       "validationExchangeResults": "/api/v1/validation/exchange",
       "validationRegionalTrends": "/api/v1/validation/regional-trends",

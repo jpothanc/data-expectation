@@ -3,9 +3,13 @@
 	import {
 		getGlobalView,
 		getHeatmap,
+		getRuleFailuresByRegion,
+		getExpectationFailuresByRegion,
 		getExchangeValidationResults,
 		type GlobalViewData,
 		type HeatmapData,
+		type RuleFailureByRegionData,
+		type ExpectationFailureByRegionData,
 		type ExchangeValidationResponse
 	} from '$lib/services/api';
 	import ExchangeResultsModal from '$lib/components/ExchangeResultsModal.svelte';
@@ -18,6 +22,8 @@
 
 	let globalViewData = $state<GlobalViewData[]>([]);
 	let heatmapData = $state<HeatmapData[]>([]);
+	let ruleFailuresByRegionData = $state<RuleFailureByRegionData[]>([]);
+	let expectationFailuresByRegionData = $state<ExpectationFailureByRegionData[]>([]);
 	
 	let selectedExchange = $state<string | null>(null);
 	let exchangeResults = $state<ExchangeValidationResponse | null>(null);
@@ -43,7 +49,9 @@
 			// Fetch only data needed for overview
 			const results = await Promise.allSettled([
 				withTimeout(getGlobalView(days), 15000),
-				withTimeout(getHeatmap(days), 15000)
+				withTimeout(getHeatmap(days), 15000),
+				withTimeout(getRuleFailuresByRegion(days, 20), 15000),
+				withTimeout(getExpectationFailuresByRegion(days, 20), 15000)
 			]);
 
 			if (results[0].status === 'fulfilled') {
@@ -56,6 +64,18 @@
 				heatmapData = results[1].value.data;
 			} else {
 				console.error('Error fetching heatmap:', results[1].reason);
+			}
+
+			if (results[2].status === 'fulfilled') {
+				ruleFailuresByRegionData = results[2].value.data;
+			} else {
+				console.error('Error fetching ruleFailuresByRegion:', results[2].reason);
+			}
+
+			if (results[3].status === 'fulfilled') {
+				expectationFailuresByRegionData = results[3].value.data;
+			} else {
+				console.error('Error fetching expectationFailuresByRegion:', results[3].reason);
 			}
 		} catch (err) {
 			console.error('Unexpected error fetching data:', err);
@@ -159,6 +179,8 @@
 			<OverviewSection 
 				globalViewData={globalViewData} 
 				heatmapData={heatmapData}
+				ruleFailuresByRegionData={ruleFailuresByRegionData}
+				expectationFailuresByRegionData={expectationFailuresByRegionData}
 				days={days}
 			/>
 		</div>
