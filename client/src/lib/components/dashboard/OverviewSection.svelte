@@ -17,24 +17,31 @@
 	let { globalViewData, heatmapData, ruleFailuresByRegionData = [], expectationFailuresByRegionData = [], days = 7 }: Props = $props();
 
 	let selectedRegionFilter = $state<string | null>(null);
+	let selectedProductTypeFilter = $state<string | null>(null);
 
 	function getExpectationTableData() {
 		if (expectationFailuresByRegionData.length === 0) {
 			return { headers: [], data: [] };
 		}
 
-		const headers = ['Region', 'ColumnName', 'ExpectationType', 'FailureCount', 'TotalRuns', 'FailureRate'];
+		const headers = ['Region', 'ProductType', 'ColumnName', 'ExpectationType', 'FailureCount', 'TotalRuns', 'FailureRate'];
 		
-		// Filter by region if a filter is selected
+		// Filter by region and product type if filters are selected
 		let filteredData = expectationFailuresByRegionData;
 		if (selectedRegionFilter) {
-			filteredData = expectationFailuresByRegionData.filter(d => d.Region === selectedRegionFilter);
+			filteredData = filteredData.filter(d => d.Region === selectedRegionFilter);
+		}
+		if (selectedProductTypeFilter) {
+			filteredData = filteredData.filter(d => d.ProductType?.toLowerCase() === selectedProductTypeFilter.toLowerCase());
 		}
 		
-		// Sort by Region, then by FailureCount descending
+		// Sort by Region, ProductType, then by FailureCount descending
 		const sortedData = [...filteredData].sort((a, b) => {
 			if (a.Region !== b.Region) {
 				return a.Region.localeCompare(b.Region);
+			}
+			if (a.ProductType !== b.ProductType) {
+				return (a.ProductType || '').localeCompare(b.ProductType || '');
 			}
 			return b.FailureCount - a.FailureCount;
 		});
@@ -42,6 +49,7 @@
 		// Format the data for the table
 		const tableData = sortedData.map(item => ({
 			Region: item.Region,
+			ProductType: item.ProductType || 'N/A',
 			ColumnName: item.ColumnName,
 			ExpectationType: item.ExpectationType,
 			FailureCount: item.FailureCount,
@@ -58,9 +66,18 @@
 		selectedRegionFilter = region;
 	}
 
+	function handleProductTypeFilter(productType: string | null) {
+		selectedProductTypeFilter = productType;
+	}
+
 	// Get available regions from data
 	const availableRegions = $derived.by(() => {
 		return [...new Set(expectationFailuresByRegionData.map(d => d.Region))].sort();
+	});
+
+	// Get available product types from data
+	const availableProductTypes = $derived.by(() => {
+		return [...new Set(expectationFailuresByRegionData.map(d => d.ProductType).filter(Boolean))].sort();
 	});
 </script>
 
@@ -109,22 +126,44 @@
 	]}>
 		{#if expectationFailuresByRegionData.length > 0}
 			<div class="table-filters">
-				<button 
-					class="filter-button {selectedRegionFilter === null ? 'active' : ''}"
-					onclick={() => handleRegionFilter(null)}
-					type="button"
-				>
-					All
-				</button>
-				{#each availableRegions as region}
+				<div class="filter-group">
+					<span class="filter-label">Region:</span>
 					<button 
-						class="filter-button {selectedRegionFilter === region ? 'active' : ''}"
-						onclick={() => handleRegionFilter(region)}
+						class="filter-button {selectedRegionFilter === null ? 'active' : ''}"
+						onclick={() => handleRegionFilter(null)}
 						type="button"
 					>
-						{region}
+						All
 					</button>
-				{/each}
+					{#each availableRegions as region}
+						<button 
+							class="filter-button {selectedRegionFilter === region ? 'active' : ''}"
+							onclick={() => handleRegionFilter(region)}
+							type="button"
+						>
+							{region}
+						</button>
+					{/each}
+				</div>
+				<div class="filter-group">
+					<span class="filter-label">Product Type:</span>
+					<button 
+						class="filter-button {selectedProductTypeFilter === null ? 'active' : ''}"
+						onclick={() => handleProductTypeFilter(null)}
+						type="button"
+					>
+						All
+					</button>
+					{#each availableProductTypes as productType}
+						<button 
+							class="filter-button {selectedProductTypeFilter === productType ? 'active' : ''}"
+							onclick={() => handleProductTypeFilter(productType)}
+							type="button"
+						>
+							{productType.charAt(0).toUpperCase() + productType.slice(1)}
+						</button>
+					{/each}
+				</div>
 			</div>
 			{@const expectationTableData = getExpectationTableData()}
 			{#if expectationTableData.data.length > 0}
@@ -160,29 +199,50 @@
 
 	.table-filters {
 		display: flex;
-		gap: 0.5rem;
+		flex-direction: row;
+		align-items: center;
+		gap: 1.5rem;
 		margin-bottom: 1rem;
-		padding: 0.5rem;
+		padding: 0.875rem 1rem;
 		background-color: #111827;
 		border-radius: 0.5rem;
 		border: 1px solid rgba(52, 211, 153, 0.08);
 		flex-wrap: wrap;
 	}
 
+	.filter-group {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		flex-wrap: wrap;
+	}
+
+	.filter-label {
+		font-size: 0.8125rem;
+		font-weight: 600;
+		color: #9ca3af;
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+		margin-right: 0.25rem;
+		white-space: nowrap;
+		min-width: fit-content;
+	}
+
 	.filter-button {
 		background-color: #1f2937;
 		border: 1px solid #374151;
 		color: #9ca3af;
-		padding: 0.5rem 1rem;
+		padding: 0.4375rem 0.875rem;
 		border-radius: 0.375rem;
-		font-size: 0.875rem;
+		font-size: 0.8125rem;
 		font-weight: 500;
 		cursor: pointer;
 		transition: all 0.2s;
 		white-space: nowrap;
+		line-height: 1.4;
 	}
 
-	.filter-button:hover {
+	.filter-button:hover:not(.active) {
 		background-color: #374151;
 		color: #e5e7eb;
 		border-color: var(--color-primary-dark);
@@ -192,6 +252,7 @@
 		background-color: var(--color-primary-dark);
 		color: #ffffff;
 		border-color: var(--color-primary-light);
+		box-shadow: 0 0 0 1px var(--color-primary-light);
 	}
 
 	.no-data-message {

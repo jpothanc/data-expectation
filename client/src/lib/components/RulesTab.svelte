@@ -25,9 +25,9 @@
 	let yamlData = $state<string | null>(null);
 	const INSTRUMENT_TYPE = productType;
 
-	// Use shared exchanges store (direct access to reactive state)
-	const exchanges = $derived.by(() => exchangesStore.exchanges);
-	const loadingExchanges = $derived.by(() => exchangesStore.loading);
+	// Use shared exchanges store (per-product-type access)
+	const exchanges = $derived.by(() => exchangesStore.getExchanges(productType));
+	const loadingExchanges = $derived.by(() => exchangesStore.isLoading(productType));
 
 	async function fetchCombinedRuleNames() {
 		loadingCombinedRules = true;

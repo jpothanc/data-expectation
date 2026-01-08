@@ -393,6 +393,7 @@ export interface RuleFailureByRegionData {
 
 export interface ExpectationFailureByRegionData {
 	Region: string;
+	ProductType: string;
 	ColumnName: string;
 	ExpectationType: string;
 	TotalRuns: number;

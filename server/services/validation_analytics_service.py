@@ -243,8 +243,8 @@ class ValidationAnalyticsService:
             product_type: Optional product type filter ('stock', 'option', 'future')
             
         Returns:
-            List of dicts with Region, ColumnName, ExpectationType, FailureCount, TotalRuns, FailureRate
-            Ordered by Region, then by FailureCount DESC
+            List of dicts with Region, ProductType, ColumnName, ExpectationType, FailureCount, TotalRuns, FailureRate
+            Ordered by Region, ProductType, then by FailureCount DESC
         """
         # Normalize product type if provided
         normalized_product_type = None
@@ -257,13 +257,14 @@ class ValidationAnalyticsService:
             WITH RankedExpectations AS (
                 SELECT 
                     UPPER(vr.[Region]) as [Region],
+                    vr.[ProductType],
                     er.[ColumnName],
                     er.[ExpectationType],
                     COUNT(DISTINCT vr.[RunId]) as [TotalRuns],
                     SUM(CASE WHEN er.[Success] = 0 THEN 1 ELSE 0 END) as [FailureCount],
                     CAST(SUM(CASE WHEN er.[Success] = 0 THEN 1 ELSE 0 END) * 100.0 / COUNT(DISTINCT vr.[RunId]) AS DECIMAL(5,2)) as [FailureRate],
                     ROW_NUMBER() OVER (
-                        PARTITION BY UPPER(vr.[Region]) 
+                        PARTITION BY UPPER(vr.[Region]), vr.[ProductType]
                         ORDER BY SUM(CASE WHEN er.[Success] = 0 THEN 1 ELSE 0 END) DESC
                     ) as [Rank]
                 FROM [dbo].[GeExpectationResults] er
@@ -271,12 +272,12 @@ class ValidationAnalyticsService:
                 WHERE vr.[RunTimestamp] >= DATEADD(DAY, -?, GETDATE())
                   AND (? IS NULL OR LOWER(vr.[ProductType]) = LOWER(?))
                   AND er.[Success] = 0
-                GROUP BY UPPER(vr.[Region]), er.[ColumnName], er.[ExpectationType]
+                GROUP BY UPPER(vr.[Region]), vr.[ProductType], er.[ColumnName], er.[ExpectationType]
             )
-            SELECT [Region], [ColumnName], [ExpectationType], [TotalRuns], [FailureCount], [FailureRate]
+            SELECT [Region], [ProductType], [ColumnName], [ExpectationType], [TotalRuns], [FailureCount], [FailureRate]
             FROM RankedExpectations
             WHERE [Rank] <= ?
-            ORDER BY [Region], [FailureCount] DESC
+            ORDER BY [Region], [ProductType], [FailureCount] DESC
         """
         return self._execute_query(query, (days, normalized_product_type, normalized_product_type, limit))
     
