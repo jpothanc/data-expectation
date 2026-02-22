@@ -5,6 +5,7 @@
 	import { exchangesStore, fetchExchanges, getDefaultExchange } from '../stores/exchanges.svelte';
 	import DataTable from './DataTable.svelte';
 	import Select from './Select.svelte';
+	import InstrumentDetailsModal from './InstrumentDetailsModal.svelte';
 
 	interface Props {
 		productType?: 'stock' | 'future' | 'option';
@@ -18,6 +19,8 @@
 	let loading = $state(false);
 	let error = $state<string | null>(null);
 	let instrumentsData = $state<any[] | null>(null);
+	let selectedInstrument = $state<any | null>(null);
+	let showInstrumentDetails = $state(false);
 
 	// Use shared exchanges store (direct access to reactive state)
 	const exchanges = $derived.by(() => exchangesStore.getExchanges(productType));
@@ -80,6 +83,29 @@
 			return { data: [], headers: [] };
 		}
 		return convertInstrumentsToTableData(instrumentsData);
+	}
+
+	function handleRicClick(row: Record<string, any>, index: number) {
+		if (instrumentsData && instrumentsData.length > 0) {
+			// Prefer matching by index to align with table rows
+			let instrument = instrumentsData[index];
+			// Fallback: try to match by RIC if index is out of range
+			if (!instrument) {
+				const ricValue = row['RIC'] ?? row['ric'];
+				if (ricValue) {
+					instrument = instrumentsData.find((inst) => String(inst.RIC ?? inst.ric) === String(ricValue)) ?? null;
+				}
+			}
+			selectedInstrument = instrument ?? null;
+			if (selectedInstrument) {
+				showInstrumentDetails = true;
+			}
+		}
+	}
+
+	function closeInstrumentDetails() {
+		showInstrumentDetails = false;
+		selectedInstrument = null;
 	}
 
 	// Fetch exchanges on mount (only once)
@@ -186,6 +212,7 @@
 				data={tableData.data}
 				title="Instruments ({tableData.data.length})"
 				ricColumn="RIC"
+				onRicClick={handleRicClick}
 			/>
 		{:else}
 			<div class="info-message">
@@ -193,12 +220,18 @@
 			</div>
 		{/if}
 	{/if}
+
+	<InstrumentDetailsModal 
+		open={showInstrumentDetails}
+		instrument={selectedInstrument}
+		onClose={closeInstrumentDetails}
+	/>
 </div>
 
 <style>
 	.search-container {
-		margin-bottom: 1.5rem;
-		padding: 1rem;
+		margin-bottom: 1rem;
+		padding: 0.625rem 0.875rem;
 		background-color: #111827;
 		border: 1px solid #374151;
 		border-radius: 0.5rem;
@@ -206,15 +239,15 @@
 
 	.search-row {
 		display: grid;
-		grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-		gap: 1rem;
+		grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+		gap: 0.625rem;
 		align-items: start;
 	}
 
 	.search-item {
 		display: flex;
 		flex-direction: column;
-		gap: 0.5rem;
+		gap: 0.25rem;
 	}
 
 	.search-label {
@@ -236,14 +269,14 @@
 
 	.input-field {
 		flex: 1;
-		padding: 0.5rem 0.75rem;
+		padding: 0.375rem 0.625rem;
 		border: 1px solid #374151;
 		border-radius: 0.375rem;
-		font-size: 0.875rem;
+		font-size: 0.8125rem;
 		background-color: #1f2937;
 		color: #e5e7eb;
 		transition: border-color 0.2s, box-shadow 0.2s;
-		height: 2.5rem;
+		height: 2rem;
 		box-sizing: border-box;
 	}
 
@@ -270,7 +303,7 @@
 	.btn {
 		background-color: var(--color-primary-dark);
 		color: white;
-		padding: 0.4375rem 0.875rem;
+		padding: 0.375rem 0.75rem;
 		border: none;
 		border-radius: 0.375rem;
 		font-size: 0.8125rem;
@@ -281,9 +314,9 @@
 	}
 
 	.btn-sm {
-		padding: 0.4375rem 0.75rem;
+		padding: 0.3rem 0.625rem;
 		font-size: 0.75rem;
-		height: 2.5rem;
+		height: 2rem;
 		box-sizing: border-box;
 		display: flex;
 		align-items: center;

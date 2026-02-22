@@ -1,4 +1,8 @@
-"""Validation analytics controller for chart data endpoints."""
+"""Validation analytics controller for chart data endpoints.
+
+This module contains only HTTP routing and request/response handling.
+All business logic lives in the service layer (services/).
+"""
 
 import logging
 import threading
@@ -334,10 +338,53 @@ def get_combined_rule_stats(combined_rule_name):
         return _handle_analytics_error(e, f"combined rule stats for {combined_rule_name}")
 
 
+@validation_api.route('/run-sessions/<region>/<date>', methods=['GET'])
+def get_run_sessions(region, date):
+    """
+    Return distinct run batches (5-minute windows) for a region and date.
+    Lightweight — no joins, used to populate the session picker in the UI.
+    ---
+    tags:
+      - Validation Analytics
+    parameters:
+      - name: region
+        in: path
+        type: string
+        required: true
+      - name: date
+        in: path
+        type: string
+        required: true
+        description: Date in YYYY-MM-DD format
+      - name: days
+        in: query
+        type: integer
+        default: 90
+        description: How many days back to search
+    responses:
+      200:
+        description: List of run sessions with pass/fail counts
+      400:
+        description: Missing parameters
+      500:
+        description: Server error
+    """
+    if not region or not date:
+        return jsonify({'error': 'region and date are required'}), 400
+    try:
+        days = request.args.get('days', 90, type=int)
+        service = get_analytics_service()
+        result = service.get_run_sessions_by_region_date(region=region, date=date, days=days)
+        return jsonify(result)
+    except Exception as e:
+        return _handle_analytics_error(e, 'run sessions by region and date')
+
+
 @validation_api.route('/region-date/<region>/<date>', methods=['GET'])
 def get_validation_results_by_region_date(region, date):
     """
-    Get validation results for a specific region and date
+    Get validation results for a specific region and date.
+    Pass session_time (ISO-8601) to restrict results to a single run batch.
     ---
     tags:
       - Validation Analytics
@@ -361,6 +408,10 @@ def get_validation_results_by_region_date(region, date):
         in: query
         type: integer
         description: Optional limit on number of runs to return
+      - name: session_time
+        in: query
+        type: string
+        description: ISO-8601 session bucket from /run-sessions — filters to that batch only
     responses:
       200:
         description: Validation results for the region and date
@@ -374,16 +425,18 @@ def get_validation_results_by_region_date(region, date):
             return jsonify({"error": "Region parameter is required"}), 400
         if not date:
             return jsonify({"error": "Date parameter is required"}), 400
-        
-        days = request.args.get('days', 7, type=int)
-        limit = request.args.get('limit', None, type=int)
-        
+
+        days         = request.args.get('days', 7, type=int)
+        limit        = request.args.get('limit', None, type=int)
+        session_time = request.args.get('session_time', None, type=str)
+
         service = get_analytics_service()
         results = service.get_validation_results_by_region_date(
             region=region,
             date=date,
             days=days,
-            limit=limit
+            limit=limit,
+            session_time=session_time,
         )
         return jsonify(results)
     except Exception as e:

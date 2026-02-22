@@ -1,5 +1,8 @@
 import json
+import logging
 import os
+
+logger = logging.getLogger(__name__)
 
 
 class ConfigService:
@@ -31,7 +34,7 @@ class ConfigService:
             fallback_path = os.path.join(config_dir, 'config.json')
             if os.path.exists(fallback_path):
                 config_path = fallback_path
-                print(f"Warning: {config_filename} not found, using config.json instead")
+                logger.warning("%s not found, falling back to config.json", config_filename)
             else:
                 raise FileNotFoundError(
                     f"Config file not found. Tried:\n"
@@ -42,7 +45,7 @@ class ConfigService:
         try:
             with open(config_path, 'r', encoding='utf-8') as config_file:
                 self._config = json.load(config_file)
-            print(f"Loaded configuration from: {os.path.basename(config_path)} (env: {self.env})")
+            logger.info("Loaded configuration from %s (env: %s)", os.path.basename(config_path), self.env)
         except json.JSONDecodeError as e:
             raise ValueError(f"Invalid JSON in config file {config_path}: {e}")
         except Exception as e:
@@ -194,4 +197,39 @@ class ConfigService:
         # Fallback to data_loader.csv.data_folder for backward compatibility
         csv_config = self.get_csv_config()
         return csv_config.get('data_folder', 'data')
+
+    # ── New section accessors ─────────────────────────────────────────────────
+
+    def get_server_config(self) -> dict:
+        """Return server host/port/debug settings."""
+        return self._config.get('server', {
+            'host': '0.0.0.0', 'port': 5006, 'debug': True, 'cors_origins': '*'
+        })
+
+    def get_cache_config(self) -> dict:
+        """Return Flask-Caching configuration."""
+        return self._config.get('cache', {
+            'type': 'SimpleCache',
+            'default_timeout_seconds': 300,
+            'exchange_list_timeout_seconds': 300,
+            'validation_timeout_seconds': 60,
+        })
+
+    def get_db_pool_config(self) -> dict:
+        """Return SQLAlchemy connection pool settings."""
+        return self._config.get('db_pool', {
+            'pool_size': 5,
+            'max_overflow': 15,
+            'pool_recycle_seconds': 3600,
+            'pool_pre_ping': True,
+        })
+
+    def get_api_limits(self) -> dict:
+        """Return default pagination / result limits for API endpoints."""
+        return self._config.get('api_limits', {
+            'rule_failures_default': 50,
+            'exchange_results_default': 200,
+            'report_instruments_max': 500,
+            'run_sessions_lookback_days': 90,
+        })
 

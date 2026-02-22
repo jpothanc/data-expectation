@@ -1,6 +1,9 @@
 """Loads validation rules from YAML configuration files."""
 
+import logging
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 
 class RuleLoader:
@@ -670,42 +673,43 @@ class RuleLoader:
             base -> product_type/base -> exchange -> product_type/exchange -> custom (YAML) -> custom (programmatic)
         """
         rules = self.load_base_rules()
-        
-        # Load product type-specific base rules
+        logger.debug("Loaded %d base rules", len(rules))
+
         if product_type:
             try:
                 product_type_rules = self.load_product_type_rules(product_type)
                 rules.extend(product_type_rules)
+                logger.debug("Loaded %d product-type rules for %s", len(product_type_rules), product_type)
             except (ValueError, FileNotFoundError):
-                # Product type rules not found, but continue
                 pass
-        
-        # Load exchange-specific rules from root exchanges folder (rules/exchanges/{exchange}.yaml)
+
         if exchange:
             exchange_rules = self.load_exchange_rules(exchange)
             rules.extend(exchange_rules)
-        
-        # Load product type-specific exchange rules
+            logger.debug("Loaded %d root-exchange rules for %s", len(exchange_rules), exchange)
+
         if product_type and exchange:
             try:
                 product_type_exchange_rules = self.load_product_type_exchange_rules(product_type, exchange)
                 rules.extend(product_type_exchange_rules)
+                logger.debug("Loaded %d product-type/exchange rules for %s/%s",
+                             len(product_type_exchange_rules), product_type, exchange)
             except (ValueError, FileNotFoundError):
-                # Product type exchange rules not found, but continue
                 pass
-        
-        # Load custom rules from YAML by name (exchange-level rules override product type rules)
+
         if custom_rule_names:
             yaml_custom_rules = self.load_custom_rules_from_yaml(
                 custom_rule_names, product_type=product_type, exchange=exchange
             )
             rules.extend(yaml_custom_rules)
-        
-        # Load programmatic custom rules
+            logger.debug("Loaded %d custom YAML rules (%s)", len(yaml_custom_rules), custom_rule_names)
+
         if custom_rules:
             programmatic_custom = self.load_custom_rules(custom_rules)
             rules.extend(programmatic_custom)
-        
+            logger.debug("Loaded %d programmatic custom rules", len(programmatic_custom))
+
+        logger.info("Combined rules for %s/%s: %d total", product_type or "-", exchange or "-", len(rules))
         return rules
     
     def reload_rules(self):

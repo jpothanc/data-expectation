@@ -1,5 +1,8 @@
 """Service for validation operations."""
 
+import logging
+import time
+
 import pandas as pd
 from processors.processor_factory import ProcessorFactory
 from services.validation_result_formatter import ValidationResultFormatter
@@ -7,6 +10,8 @@ from services.instrument_service import InstrumentService
 from services.constants import DEFAULT_EXCHANGE_MAP
 from validators.rule_loader import RuleLoader
 from config.config_service import ConfigService
+
+logger = logging.getLogger(__name__)
 
 
 class ValidationService:
@@ -97,67 +102,64 @@ class ValidationService:
         """
         try:
             data_source = self._get_data_source(exchange, product_type=product_type)
-            # Log for debugging intermittent failures
-            import logging
-            logger = logging.getLogger(__name__)
-            logger.debug(f"Data source for {exchange} ({product_type}): {data_source}, exchange_map keys: {list(self.exchange_map.keys())}")
+            logger.debug("Data source for %s (%s): %s | exchange_map keys: %s",
+                         exchange, product_type, data_source, list(self.exchange_map.keys()))
         except ValueError as e:
-            import logging
-            logger = logging.getLogger(__name__)
-            logger.error(f"Exchange {exchange} not found in exchange_map for product_type {product_type}. Available: {list(self.exchange_map.keys())}")
+            logger.error("Exchange %s not found in exchange_map for product_type %s. Available: %s",
+                         exchange, product_type, list(self.exchange_map.keys()))
             raise ValueError(f"Exchange validation failed: {str(e)}")
-        
+
         try:
-            # Create a fresh loader instance to avoid file handle issues
-            # This ensures each processor gets its own loader instance
             processor = ProcessorFactory.create(
                 product_type=product_type,
                 loader=self.loader,
-                exchange=exchange
+                exchange=exchange,
             )
         except IOError as e:
-            import logging
-            logger = logging.getLogger(__name__)
-            logger.error(f"IOError creating processor for {product_type}: {str(e)}")
-            raise ValueError(f"File access error creating processor for {product_type}: {str(e)}. This may be due to a closed file handle or file locking issue.")
+            logger.error("IOError creating processor for %s: %s", product_type, e)
+            raise ValueError(
+                f"File access error creating processor for {product_type}: {e}. "
+                "This may be due to a closed file handle or file locking issue."
+            )
         except Exception as e:
-            import logging
-            logger = logging.getLogger(__name__)
-            logger.error(f"Error creating processor for {product_type}: {str(e)}")
-            raise ValueError(f"Failed to create processor for {product_type}: {str(e)}")
-        
+            logger.error("Error creating processor for %s: %s", product_type, e)
+            raise ValueError(f"Failed to create processor for {product_type}: {e}")
+
+        t0 = time.perf_counter()
         try:
             results = processor.process(
                 data_source,
                 exchange=exchange,
                 custom_rules=custom_rules,
-                custom_rule_names=custom_rule_names
+                custom_rule_names=custom_rule_names,
             )
         except FileNotFoundError as e:
-            raise FileNotFoundError(f"Data file not found for {exchange}: {str(e)}")
+            raise FileNotFoundError(f"Data file not found for {exchange}: {e}")
         except ValueError as e:
-            raise ValueError(f"Validation failed for {exchange}: {str(e)}")
+            raise ValueError(f"Validation failed for {exchange}: {e}")
         except KeyError as e:
-            raise ValueError(f"Missing required column in data for {exchange}: {str(e)}")
+            raise ValueError(f"Missing required column in data for {exchange}: {e}")
         except pd.errors.EmptyDataError:
             raise ValueError(f"Data file for {exchange} is empty")
         except pd.errors.ParserError as e:
-            raise ValueError(f"Error parsing data file for {exchange}: {str(e)}")
+            raise ValueError(f"Error parsing data file for {exchange}: {e}")
         except Exception as e:
-            error_type = type(e).__name__
-            raise Exception(f"Unexpected error during validation for {exchange} ({error_type}): {str(e)}")
-        
-        # Validate results object
+            raise Exception(f"Unexpected error during validation for {exchange} ({type(e).__name__}): {e}")
+        finally:
+            elapsed_ms = (time.perf_counter() - t0) * 1000
+            logger.info("[TIMING] validate_exchange %s/%s completed in %.1f ms",
+                        product_type, exchange, elapsed_ms)
+
         if results is None:
             raise ValueError(f"Validation returned no results for {exchange}")
-        
+
         try:
             formatted = ValidationResultFormatter.format_results(results, exchange)
             return formatted
         except AttributeError as e:
-            raise Exception(f"Invalid validation results format for {exchange}: {str(e)}")
+            raise Exception(f"Invalid validation results format for {exchange}: {e}")
         except Exception as e:
-            raise Exception(f"Failed to format validation results for {exchange}: {str(e)}")
+            raise Exception(f"Failed to format validation results for {exchange}: {e}")
     
     def validate_custom_only(self, exchange, custom_rule_names=None, custom_rules=None, product_type='stock'):
         """

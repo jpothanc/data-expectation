@@ -1,6 +1,7 @@
 """Service for querying validation analytics data from RubyUsers database."""
 
 import logging
+import time
 from config.config_service import ConfigService
 
 logger = logging.getLogger(__name__)
@@ -56,8 +57,9 @@ class ValidationAnalyticsService:
                 raise
         return self._connection
     
-    def _execute_query(self, query, params=None):
+    def _execute_query(self, query, params=None, _label: str = "query"):
         """Execute a SQL query and return results as list of dictionaries."""
+        t0 = time.perf_counter()
         try:
             conn = self._get_connection()
             cursor = conn.cursor()
@@ -65,17 +67,18 @@ class ValidationAnalyticsService:
                 cursor.execute(query, params)
             else:
                 cursor.execute(query)
-            
+
             columns = [column[0] for column in cursor.description]
-            results = []
-            for row in cursor.fetchall():
-                results.append(dict(zip(columns, row)))
-            
+            results = [dict(zip(columns, row)) for row in cursor.fetchall()]
             cursor.close()
+
+            elapsed_ms = (time.perf_counter() - t0) * 1000
+            logger.info("[TIMING] DB %s: %.1f ms | %d rows returned", _label, elapsed_ms, len(results))
             return results
         except Exception as e:
-            logger.error(f"Error executing query: {e}")
-            logger.error(f"Query: {query}")
+            elapsed_ms = (time.perf_counter() - t0) * 1000
+            logger.error("[TIMING] DB %s failed after %.1f ms | %s", _label, elapsed_ms, e)
+            logger.debug("Query: %s", query)
             raise
     
     def get_pass_fail_by_region(self, days=7):
@@ -100,7 +103,7 @@ class ValidationAnalyticsService:
             GROUP BY [Region]
             ORDER BY [Region]
         """
-        return self._execute_query(query, (days,))
+        return self._execute_query(query, (days,), _label="pass_fail_by_region")
     
     def get_heatmap_region_product(self, days=7):
         """
@@ -124,7 +127,7 @@ class ValidationAnalyticsService:
             GROUP BY [Region], [ProductType]
             ORDER BY [Region], [ProductType]
         """
-        return self._execute_query(query, (days,))
+        return self._execute_query(query, (days,), _label="heatmap_region_product")
     
     def get_regional_exchange_breakdown(self, days=7):
         """
@@ -158,7 +161,7 @@ class ValidationAnalyticsService:
             HAVING COUNT(*) > 0
             ORDER BY [Region], [ProductType], [Exchange]
         """
-        return self._execute_query(query, (days,))
+        return self._execute_query(query, (days,), _label="regional_exchange_breakdown")
     
     def get_rule_failure_stats(self, days=7, limit=20):
         """
@@ -184,7 +187,7 @@ class ValidationAnalyticsService:
             HAVING SUM(CASE WHEN vr.[Success] = 0 THEN 1 ELSE 0 END) > 0
             ORDER BY [FailureCount] DESC
         """
-        return self._execute_query(query, (limit, days))
+        return self._execute_query(query, (limit, days), _label="rule_failure_stats")
     
     def get_rule_failures_by_region(self, days=7, limit=20, product_type=None):
         """
@@ -230,7 +233,7 @@ class ValidationAnalyticsService:
             WHERE [Rank] <= ?
             ORDER BY [Region], [FailureCount] DESC
         """
-        return self._execute_query(query, (days, normalized_product_type, normalized_product_type, limit))
+        return self._execute_query(query, (days, normalized_product_type, normalized_product_type, limit), _label="rule_failures_by_region")
     
     def get_expectation_failures_by_region(self, days=7, limit=20, product_type=None):
         """
@@ -279,7 +282,7 @@ class ValidationAnalyticsService:
             WHERE [Rank] <= ?
             ORDER BY [Region], [ProductType], [FailureCount] DESC
         """
-        return self._execute_query(query, (days, normalized_product_type, normalized_product_type, limit))
+        return self._execute_query(query, (days, normalized_product_type, normalized_product_type, limit), _label="expectation_failures_by_region")
     
     def get_validation_results_by_exchange(self, exchange, days=7, limit=None):
         """
@@ -451,7 +454,7 @@ class ValidationAnalyticsService:
         pattern1 = f'%{combined_rule_name}%'
         pattern2 = f'%,{combined_rule_name}%'
         
-        stats = self._execute_query(query, (combined_rule_name, combined_rule_name, pattern1, pattern2, days))
+        stats = self._execute_query(query, (combined_rule_name, combined_rule_name, pattern1, pattern2, days), _label="combined_rule_stats")
         
         if not stats or stats[0]["TotalCount"] == 0:
             return {
@@ -495,7 +498,7 @@ class ValidationAnalyticsService:
             GROUP BY er.[ColumnName], er.[ExpectationType]
             ORDER BY [FailureCount] DESC
         """
-        failure_reasons = self._execute_query(failure_query, (combined_rule_name, combined_rule_name, pattern1, pattern2, days))
+        failure_reasons = self._execute_query(failure_query, (combined_rule_name, combined_rule_name, pattern1, pattern2, days), _label="combined_rule_failure_reasons")
         
         result["FailureReasons"] = [
             {
@@ -564,7 +567,7 @@ class ValidationAnalyticsService:
             WHERE {where_clause}
             ORDER BY [Region], [RunTimestamp]
         """
-        raw_data = self._execute_query(query, tuple(params))
+        raw_data = self._execute_query(query, tuple(params), _label="regional_trends")
         
         # Group data by region (normalize to uppercase for consistency)
         grouped_data = {}
@@ -581,16 +584,76 @@ class ValidationAnalyticsService:
         
         return grouped_data
     
-    def get_validation_results_by_region_date(self, region, date, days=7, limit=None):
+    def get_run_sessions_by_region_date(self, region, date, days=7):
+        """
+        Return a lightweight list of distinct run batches for a region/date.
+
+        Runs are bucketed into 5-minute windows so that exchanges that run
+        together as a batch always appear as a single session entry.
+
+        Returns a list of dicts:
+            session_time  – ISO-8601 string of the bucket start (5-min truncated)
+            total_runs    – number of exchange runs in this batch
+            passed_runs   – how many exchanges passed
+            failed_runs   – how many exchanges failed
+        """
+        from datetime import datetime
+
+        region_normalized = region.lower() if region else None
+
+        try:
+            date_obj = datetime.strptime(date.split('T')[0], '%Y-%m-%d')
+        except ValueError:
+            date_obj = None
+
+        date_str = date_obj.strftime('%Y-%m-%d') if date_obj else date
+
+        # Bucket runs into 5-minute windows using integer arithmetic on minute offsets
+        query = """
+            SELECT
+                DATEADD(
+                    MINUTE,
+                    (DATEDIFF(MINUTE, 0, [RunTimestamp]) / 5) * 5,
+                    0
+                ) AS [SessionTime],
+                COUNT(*)                                                  AS [TotalRuns],
+                SUM(CASE WHEN [Success] = 1 THEN 1 ELSE 0 END)           AS [PassedRuns],
+                SUM(CASE WHEN [Success] = 0 THEN 1 ELSE 0 END)           AS [FailedRuns]
+            FROM [dbo].[GeValidationRuns]
+            WHERE UPPER([Region]) = UPPER(?)
+              AND CAST([RunTimestamp] AS DATE) = CAST(? AS DATE)
+              AND [RunTimestamp] >= DATEADD(DAY, -?, GETDATE())
+            GROUP BY DATEADD(MINUTE, (DATEDIFF(MINUTE, 0, [RunTimestamp]) / 5) * 5, 0)
+            ORDER BY [SessionTime] DESC
+        """
+
+        rows = self._execute_query(query, (region_normalized, date_str, days), _label="run_sessions_by_region_date")
+
+        sessions = []
+        for row in rows:
+            st = row['SessionTime']
+            sessions.append({
+                'session_time': st.isoformat() if hasattr(st, 'isoformat') else str(st),
+                'total_runs':   int(row['TotalRuns']),
+                'passed_runs':  int(row['PassedRuns']),
+                'failed_runs':  int(row['FailedRuns']),
+            })
+
+        return {'region': region.upper(), 'date': date_str, 'sessions': sessions}
+
+    def get_validation_results_by_region_date(self, region, date, days=7, limit=None, session_time=None):
         """
         Get validation results for a specific region and date.
-        
+
         Args:
             region: Region name (e.g., "APAC", "US", "EMEA")
-            date: Date string in format "YYYY-MM-DD" or "YYYY-MM-DD HH:MM:SS"
+            date: Date string in format "YYYY-MM-DD"
             days: Number of days to look back (default: 7)
             limit: Optional limit on number of runs to return
-            
+            session_time: ISO-8601 string of a 5-min bucket returned by
+                          get_run_sessions_by_region_date.  When supplied only
+                          runs that fall inside that 5-minute window are returned.
+
         Returns:
             Dictionary with exchange, days, total_runs, and runs array
         """
@@ -620,6 +683,18 @@ class ValidationAnalyticsService:
                 date_start = date
                 date_end = date
             
+            # Build optional session_time filter (5-min bucket window)
+            session_filter = ''
+            session_params: tuple = ()
+            if session_time:
+                # session_time is the bucket start (already 5-min truncated).
+                # Keep runs whose 5-min bucket matches.
+                session_filter = """
+                  AND DATEADD(MINUTE, (DATEDIFF(MINUTE, 0, vr.[RunTimestamp]) / 5) * 5, 0)
+                    = DATEADD(MINUTE, (DATEDIFF(MINUTE, 0, CAST(? AS DATETIME)) / 5) * 5, 0)
+                """
+                session_params = (session_time,)
+
             # Build query with limit
             query = f"""
                 SELECT TOP ({limit})
@@ -640,11 +715,14 @@ class ValidationAnalyticsService:
                 WHERE UPPER(vr.[Region]) = UPPER(?)
                   AND CAST(vr.[RunTimestamp] AS DATE) = CAST(? AS DATE)
                   AND vr.[RunTimestamp] >= DATEADD(DAY, -?, GETDATE())
+                  {session_filter}
                 ORDER BY vr.[RunTimestamp] DESC
             """
-            
-            logger.info(f"Executing query for region {region}, date {date}, days {days}")
-            cursor.execute(query, (region_normalized, date_start, days))
+
+            params = (region_normalized, date_start, days) + session_params
+            logger.info(f"Executing query for region {region}, date {date}, days {days}"
+                        + (f", session {session_time}" if session_time else ""))
+            cursor.execute(query, params)
             runs = cursor.fetchall()
             logger.info(f"Found {len(runs)} runs for region {region} on date {date}")
             
@@ -661,15 +739,18 @@ class ValidationAnalyticsService:
             # Get column names
             columns = [column[0] for column in cursor.description]
             
-            # Convert runs to dictionaries
-            runs_data = []
+            # Separate failed runs (full detail) from passed runs (header only)
+            failed_runs = []
+            passed_runs = []
+
             for idx, run in enumerate(runs):
                 logger.debug(f"Processing run {idx + 1}/{len(runs)}: RunId={run[0] if run else 'N/A'}")
                 run_dict = dict(zip(columns, run))
-                
-                # Only include failed runs
-                if run_dict.get('Success') == 0 or run_dict.get('Success') is False:
-                    # Get expectation results for this run
+
+                is_failed = run_dict.get('Success') == 0 or run_dict.get('Success') is False
+
+                if is_failed:
+                    # Fetch expectation results
                     exp_query = """
                         SELECT 
                             [ResultId],
@@ -686,54 +767,56 @@ class ValidationAnalyticsService:
                         WHERE [RunId] = ?
                         ORDER BY [ColumnName], [ExpectationType]
                     """
-                    
                     cursor.execute(exp_query, (run_dict['RunId'],))
                     expectations = cursor.fetchall()
                     exp_columns = [col[0] for col in cursor.description]
-                    
-                    # Convert expectation results to dictionaries and ensure numeric types
+
                     expectation_results = []
                     for exp in expectations:
                         exp_dict = dict(zip(exp_columns, exp))
-                        # Ensure numeric fields are properly converted
-                        for key in ['UnexpectedPercent', 'MissingPercent', 'ElementCount', 
-                                   'UnexpectedCount', 'MissingCount']:
+                        for key in ['UnexpectedPercent', 'MissingPercent', 'ElementCount',
+                                    'UnexpectedCount', 'MissingCount']:
                             if key in exp_dict and exp_dict[key] is not None:
                                 try:
                                     exp_dict[key] = float(exp_dict[key])
                                 except (ValueError, TypeError):
                                     exp_dict[key] = 0.0
                         expectation_results.append(exp_dict)
-                    
+
                     run_dict['expectation_results'] = expectation_results
-                    
-                    # Get rules applied for this run
+
+                    # Fetch rules applied
                     rules_query = """
-                        SELECT 
-                            [RuleName],
-                            [RuleType],
-                            [RuleLevel],
-                            [RuleSource]
+                        SELECT [RuleName], [RuleType], [RuleLevel], [RuleSource]
                         FROM [dbo].[GeValidationRulesApplied]
                         WHERE [RunId] = ?
                         ORDER BY [RuleType], [RuleLevel]
                     """
-                    
                     cursor.execute(rules_query, (run_dict['RunId'],))
                     rules = cursor.fetchall()
                     rules_columns = [col[0] for col in cursor.description]
-                    
-                    run_dict['rules_applied'] = [
-                        dict(zip(rules_columns, rule)) for rule in rules
-                    ]
-                    
-                    runs_data.append(run_dict)
-            
+                    run_dict['rules_applied'] = [dict(zip(rules_columns, r)) for r in rules]
+
+                    failed_runs.append(run_dict)
+                else:
+                    # Passed runs: lightweight — no sub-queries needed
+                    passed_runs.append({
+                        'RunId':                 run_dict.get('RunId'),
+                        'RunTimestamp':          run_dict.get('RunTimestamp'),
+                        'Exchange':              run_dict.get('Exchange'),
+                        'ProductType':           run_dict.get('ProductType'),
+                        'TotalExpectations':     run_dict.get('TotalExpectations', 0),
+                        'SuccessfulExpectations':run_dict.get('SuccessfulExpectations', 0),
+                        'ExecutionDurationMs':   run_dict.get('ExecutionDurationMs', 0),
+                        'RulesApplied':          run_dict.get('RulesApplied', 0),
+                    })
+
             return {
-                "exchange": f"{region} - {date}",
-                "days": days,
-                "total_runs": len(runs_data),
-                "runs": runs_data
+                "exchange":     f"{region} - {date}",
+                "days":         days,
+                "total_runs":   len(failed_runs) + len(passed_runs),
+                "runs":         failed_runs,   # detailed (failed only)
+                "passed_runs":  passed_runs,   # lightweight (passed only)
             }
             
         except Exception as e:
@@ -747,4 +830,3 @@ class ValidationAnalyticsService:
         if self._connection:
             self._connection.close()
             self._connection = None
-

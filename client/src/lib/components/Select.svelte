@@ -39,16 +39,16 @@
 
 <style>
 	.select {
-		padding: 0.5rem 0.75rem;
+		padding: 0.375rem 0.625rem;
 		border: 1px solid #374151;
 		border-radius: 0.375rem;
-		font-size: 0.875rem;
+		font-size: 0.8125rem;
 		background-color: #1f2937;
 		color: #e5e7eb;
 		cursor: pointer;
 		transition: border-color 0.2s, box-shadow 0.2s;
 		min-width: 200px;
-		height: 2.5rem;
+		height: 2rem;
 		box-sizing: border-box;
 	}
 

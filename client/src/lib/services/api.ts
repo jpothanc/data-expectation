@@ -47,24 +47,16 @@ export async function validateStocks(exchange: string): Promise<ValidationRespon
 }
 
 export async function validateFutures(exchange: string): Promise<ValidationResponse> {
-	const url = `${API_BASE_URL}/api/v1/rules/validate/future/${exchange}`;
+	const url = `${API_BASE_URL}${API_ENDPOINTS.validateFuture}/${exchange}`;
 	const response = await fetch(url);
-	
-	if (!response.ok) {
-		throw new Error(`HTTP error! status: ${response.status}`);
-	}
-	
+	if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
 	return await response.json();
 }
 
 export async function validateOptions(exchange: string): Promise<ValidationResponse> {
-	const url = `${API_BASE_URL}/api/v1/rules/validate/option/${exchange}`;
+	const url = `${API_BASE_URL}${API_ENDPOINTS.validateOption}/${exchange}`;
 	const response = await fetch(url);
-	
-	if (!response.ok) {
-		throw new Error(`HTTP error! status: ${response.status}`);
-	}
-	
+	if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
 	return await response.json();
 }
 
@@ -153,8 +145,8 @@ export async function getRules(exchange: string, productType: string = 'stock'):
 	const endpoint = productType === 'stock'
 		? `${API_ENDPOINTS.rules}/${exchange}`
 		: productType === 'future'
-		? `/api/v1/rules/rules/futures/${exchange}`
-		: `/api/v1/rules/rules/options/${exchange}`;
+		? `${API_ENDPOINTS.rulesFuture}/${exchange}`
+		: `${API_ENDPOINTS.rulesOption}/${exchange}`;
 	
 	const url = `${API_BASE_URL}${endpoint}`;
 	const response = await fetch(url);
@@ -540,11 +532,26 @@ export interface ExchangeValidationResult {
 	}>;
 }
 
+/** Lightweight summary for a single exchange run that passed all expectations. */
+export interface PassedExchangeRun {
+	RunId: number;
+	RunTimestamp: string;
+	Exchange: string;
+	ProductType: string;
+	TotalExpectations: number;
+	SuccessfulExpectations: number;
+	ExecutionDurationMs: number;
+	RulesApplied: number;
+}
+
 export interface ExchangeValidationResponse {
 	exchange: string;
 	days: number;
 	total_runs: number;
+	/** Failed runs — full detail including expectation results and rules applied. */
 	runs: ExchangeValidationResult[];
+	/** Passed runs — lightweight summary only, no sub-queries. */
+	passed_runs: PassedExchangeRun[];
 }
 
 export async function getExchangeValidationResults(
@@ -607,23 +614,56 @@ export async function getRegionalTrends(days: number = 30, productType?: string)
 	return await response.json();
 }
 
+export interface RunSession {
+	/** ISO-8601 5-minute bucket start time */
+	session_time: string;
+	total_runs: number;
+	passed_runs: number;
+	failed_runs: number;
+}
+
+export interface RunSessionsResponse {
+	region: string;
+	date: string;
+	sessions: RunSession[];
+}
+
+/**
+ * Lightweight call that returns distinct run batches (5-min windows) for a
+ * region/date. Use this to populate the session picker before loading full runs.
+ */
+export async function getRunSessionsByRegionDate(
+	region: string,
+	date: string,
+	days: number = 90
+): Promise<RunSessionsResponse> {
+	const url = `${API_BASE_URL}${API_ENDPOINTS.validationRunSessions}/${encodeURIComponent(region)}/${encodeURIComponent(date)}?days=${days}`;
+	const response = await fetch(url);
+	if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+	return await response.json();
+}
+
 export async function getValidationResultsByRegionDate(
 	region: string,
 	date: string,
 	days: number = 7,
-	limit?: number
+	limit?: number,
+	sessionTime?: string
 ): Promise<ExchangeValidationResponse> {
 	let url = `${API_BASE_URL}${API_ENDPOINTS.validationRegionDateResults}/${encodeURIComponent(region)}/${encodeURIComponent(date)}?days=${days}`;
-	if (limit) {
-		url += `&limit=${limit}`;
-	}
-	
+	if (limit)       url += `&limit=${limit}`;
+	if (sessionTime) url += `&session_time=${encodeURIComponent(sessionTime)}`;
+
 	const response = await fetch(url);
-	
-	if (!response.ok) {
-		throw new Error(`HTTP error! status: ${response.status}`);
-	}
-	
+	if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
 	return await response.json();
+}
+
+/**
+ * Returns the URL to download the consolidated Excel failure report
+ * for a given region and date. Navigate to this URL to trigger the download.
+ */
+export function getExcelReportUrl(region: string, date: string, days: number = 90): string {
+	return `${API_BASE_URL}${API_ENDPOINTS.excelReport}/${encodeURIComponent(region)}/${encodeURIComponent(date)}?days=${days}`;
 }
 

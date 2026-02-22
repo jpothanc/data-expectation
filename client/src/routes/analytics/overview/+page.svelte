@@ -58,24 +58,40 @@
 				globalViewData = results[0].value.data;
 			} else {
 				console.error('Error fetching globalView:', results[0].reason);
+				error = `Failed to load global view: ${results[0].reason instanceof Error ? results[0].reason.message : String(results[0].reason)}`;
 			}
 
 			if (results[1].status === 'fulfilled') {
 				heatmapData = results[1].value.data;
 			} else {
 				console.error('Error fetching heatmap:', results[1].reason);
+				if (!error) {
+					error = `Failed to load heatmap: ${results[1].reason instanceof Error ? results[1].reason.message : String(results[1].reason)}`;
+				}
 			}
 
 			if (results[2].status === 'fulfilled') {
 				ruleFailuresByRegionData = results[2].value.data;
 			} else {
 				console.error('Error fetching ruleFailuresByRegion:', results[2].reason);
+				if (!error) {
+					error = `Failed to load rule failures: ${results[2].reason instanceof Error ? results[2].reason.message : String(results[2].reason)}`;
+				}
 			}
 
 			if (results[3].status === 'fulfilled') {
 				expectationFailuresByRegionData = results[3].value.data;
 			} else {
 				console.error('Error fetching expectationFailuresByRegion:', results[3].reason);
+				if (!error) {
+					error = `Failed to load expectation failures: ${results[3].reason instanceof Error ? results[3].reason.message : String(results[3].reason)}`;
+				}
+			}
+			
+			// If all requests failed, show a more helpful error
+			const allFailed = results.every(r => r.status === 'rejected');
+			if (allFailed) {
+				error = 'Failed to load analytics data. Please ensure the server is running at http://127.0.0.1:5006';
 			}
 		} catch (err) {
 			console.error('Unexpected error fetching data:', err);

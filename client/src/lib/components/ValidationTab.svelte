@@ -8,10 +8,12 @@
 		transformValidationResultsToTableData,
 		formatHeaderName
 	} from '../utils';
+	import { parseResultObject } from '../utils/validation';
 	import DataTable from './DataTable.svelte';
 	import SummaryCard from './SummaryCard.svelte';
 	import Select from './Select.svelte';
 	import PartialDataModal from './PartialDataModal.svelte';
+	import FailedInstrumentsModal from './reports/FailedInstrumentsModal.svelte';
 
 	interface Props {
 		initialExchange?: string | null;
@@ -197,6 +199,50 @@
 	});
 
 	const failedCount = $derived(expectationResults.filter(r => !r.success).length);
+
+	// ── Failed instruments lookup ──────────────────────────────
+	interface FailedLookup {
+		columnName: string;
+		expectationType: string;
+		unexpectedCount: number;
+		unexpectedPercent: number;
+		missingCount: number;
+		unexpectedValues: { value: string; count: number }[];
+	}
+
+	let failedLookup = $state<FailedLookup | null>(null);
+
+	/**
+	 * Parse a live ValidationResult (Python-dict .result string) into
+	 * the normalised shape expected by FailedInstrumentsModal.
+	 */
+	function openFailedLookup(result: ValidationResult) {
+		const { resultDetails } = parseResultObject(result);
+
+		let unexpectedValues: { value: string; count: number }[] = [];
+
+		if (Array.isArray(resultDetails.partial_unexpected_counts) && resultDetails.partial_unexpected_counts.length > 0) {
+			unexpectedValues = resultDetails.partial_unexpected_counts.map((item: any) => ({
+				value: String(item.value ?? ''),
+				count: Number(item.count ?? 1)
+			}));
+		} else if (Array.isArray(resultDetails.partial_unexpected_list) && resultDetails.partial_unexpected_list.length > 0) {
+			const unique = [...new Set<string>(resultDetails.partial_unexpected_list.map(String))];
+			unexpectedValues = unique.map((v) => ({
+				value: v,
+				count: (resultDetails.partial_unexpected_list as any[]).filter((x: any) => String(x) === v).length
+			}));
+		}
+
+		failedLookup = {
+			columnName: result.column ?? '',
+			expectationType: result.expectation_type ?? '',
+			unexpectedCount: resultDetails.unexpected_count ?? 0,
+			unexpectedPercent: resultDetails.unexpected_percent ?? 0,
+			missingCount: resultDetails.missing_count ?? 0,
+			unexpectedValues
+		};
+	}
 </script>
 
 <div class="validation-tab">
@@ -248,6 +294,7 @@
 		{/if}
 
 		{#if expectationResults.length > 0}
+			{@const visibleHeaders = tableData.headers.filter(h => h !== 'partial_unexpected_counts')}
 			<div class="table-wrapper">
 				<div class="table-header">
 					<h2 class="table-title">
@@ -266,19 +313,35 @@
 						</button>
 					</div>
 				</div>
-				<div class="table-container">
-					<table class="data-table">
-						<thead>
+			<div class="table-container">
+				<table class="data-table">
+				<thead>
+						<tr>
+							{#each visibleHeaders as header}
+								<th>{formatHeaderName(header)}</th>
+							{/each}
+							<th></th>
+						</tr>
+					</thead>
+					<tbody>
+						{#if filteredResults.length === 0}
 							<tr>
-								{#each tableData.headers as header}
-									<th>{formatHeaderName(header)}</th>
-								{/each}
+								<td colspan={visibleHeaders.length + 1} class="empty-state-cell">
+									All {expectationResults.length} validation{expectationResults.length !== 1 ? 's' : ''} passed — no failures to display.
+								</td>
 							</tr>
-						</thead>
-						<tbody>
-							{#each tableData.data as row}
-								<tr class="result-row {row._success ? 'success-row' : 'failed-row'}">
-									{#each tableData.headers as header}
+						{/if}
+						{#each filteredResults as result, i}
+							{@const row = tableData.data[i]}
+							<tr
+								class="result-row {result.success ? 'success-row' : 'failed-row'} {!result.success ? 'failed-clickable' : ''}"
+								onclick={!result.success ? () => openFailedLookup(result) : undefined}
+								role={!result.success ? 'button' : undefined}
+								tabindex={!result.success ? 0 : undefined}
+								onkeydown={!result.success ? (e) => { if (e.key === 'Enter' || e.key === ' ') openFailedLookup(result); } : undefined}
+								title={!result.success ? 'Click to find failing instruments' : undefined}
+							>
+								{#each visibleHeaders as header}
 										<td class={header === 'column' ? 'column-name' : header === 'expectationType' ? 'expectation-type' : header.startsWith('partial_') || header.includes('percent') ? 'detail-value' : ''}>
 									{#if header === 'status'}
 										<span class="status-indicator {row._success ? 'success' : 'failed'}">
@@ -334,6 +397,17 @@
 									{/if}
 										</td>
 									{/each}
+									<td class="lookup-cell">
+										{#if !result.success}
+											<span class="lookup-hint">
+												<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+													<circle cx="11" cy="11" r="8" />
+													<path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35" />
+												</svg>
+												Instruments
+											</span>
+										{/if}
+									</td>
 								</tr>
 							{/each}
 						</tbody>
@@ -346,23 +420,39 @@
 	<PartialDataModal data={modalData} header={modalHeader} open={modalOpen} onClose={closeModal} />
 </div>
 
+{#if failedLookup}
+	<FailedInstrumentsModal
+		columnName={failedLookup.columnName}
+		expectationType={failedLookup.expectationType}
+		unexpectedCount={failedLookup.unexpectedCount}
+		unexpectedPercent={failedLookup.unexpectedPercent}
+		missingCount={failedLookup.missingCount}
+		unexpectedValues={failedLookup.unexpectedValues}
+		exchange={selectedExchange}
+		productType={productType}
+		onClose={() => (failedLookup = null)}
+	/>
+{/if}
+
 <style>
 	.controls {
 		display: flex;
-		gap: 1rem;
+		gap: 0.625rem;
 		align-items: center;
-		margin-bottom: 2rem;
+		margin-bottom: 1rem;
 		flex-wrap: wrap;
 	}
 
 	.master-id-input {
-		padding: 0.5rem 1rem;
+		padding: 0.375rem 0.75rem;
 		background-color: #1f2937;
 		border: 1px solid #374151;
 		border-radius: 0.375rem;
 		color: #e5e7eb;
-		font-size: 0.875rem;
-		min-width: 150px;
+		font-size: 0.8125rem;
+		min-width: 140px;
+		height: 2rem;
+		box-sizing: border-box;
 		transition: border-color 0.2s;
 	}
 
@@ -386,14 +476,16 @@
 	.btn {
 		background-color: var(--color-primary-dark);
 		color: white;
-		padding: 0.5rem 1rem;
+		padding: 0.375rem 0.875rem;
 		border: none;
 		border-radius: 0.375rem;
-		font-size: 0.875rem;
+		font-size: 0.8125rem;
 		font-weight: 500;
 		cursor: pointer;
 		transition: background-color 0.2s;
 		white-space: nowrap;
+		height: 2rem;
+		box-sizing: border-box;
 	}
 
 	.btn:hover:not(:disabled) {
@@ -407,8 +499,8 @@
 	}
 
 	.error {
-		margin-top: 1.5rem;
-		padding: 1rem;
+		margin-top: 1rem;
+		padding: 0.75rem;
 		background-color: #7f1d1d;
 		border: 1px solid #dc2626;
 		border-radius: 0.5rem;
@@ -416,28 +508,30 @@
 	}
 
 	.table-wrapper {
-		margin-top: 2rem;
+		margin-top: 0.5rem;
 	}
 
 	.table-header {
 		display: flex;
 		justify-content: space-between;
 		align-items: center;
-		margin-bottom: 1rem;
-		padding: 0 0.5rem;
+		margin-bottom: 0.375rem;
+		padding: 0;
 		flex-wrap: wrap;
-		gap: 1rem;
+		gap: 0.5rem;
 	}
 
 	.table-title {
-		font-size: 1rem;
+		font-size: 0.8125rem;
 		font-weight: 600;
-		color: #ffffff;
+		color: #9ca3af;
 		margin: 0;
 		display: flex;
 		align-items: center;
 		gap: 0.5rem;
 		flex-wrap: wrap;
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
 	}
 
 	.total-count-badge {
@@ -465,12 +559,12 @@
 	}
 
 	.filter-btn {
-		padding: 0.5rem 1rem;
+		padding: 0.3rem 0.75rem;
 		background-color: #1f2937;
 		color: #e5e7eb;
 		border: 1px solid #374151;
 		border-radius: 0.375rem;
-		font-size: 0.875rem;
+		font-size: 0.8125rem;
 		font-weight: 500;
 		cursor: pointer;
 		transition: all 0.2s;
@@ -483,14 +577,14 @@
 	}
 
 	.filter-btn.active {
-		background-color: #7f1d1d;
-		border-color: #dc2626;
-		color: #fca5a5;
+		background-color: rgba(249, 115, 22, 0.15);
+		border-color: #f97316;
+		color: #fb923c;
 	}
 
 	.filter-btn.active:hover {
-		background-color: #991b1b;
-		border-color: #f87171;
+		background-color: rgba(249, 115, 22, 0.22);
+		border-color: #fb923c;
 	}
 
 	.filter-btn:disabled {
@@ -535,15 +629,14 @@
 	.data-table {
 		width: 100%;
 		border-collapse: collapse;
-		font-size: 0.875rem;
+		font-size: 0.8125rem;
 	}
 
 	.data-table thead {
 		position: sticky;
 		top: -1px;
-		background-color: #1f2937;
+		background-color: #111827;
 		z-index: 10;
-		box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
 	}
 
 	.data-table thead tr {
@@ -551,21 +644,32 @@
 	}
 
 	.data-table th {
-		padding: 0.75rem 1rem;
+		padding: 0.3rem 0.625rem;
 		text-align: left;
+		font-size: 0.6875rem;
 		font-weight: 600;
-		color: #e5e7eb;
-		border-bottom: 2px solid #4b5563;
-		background-color: #1f2937;
+		color: #6b7280;
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+		border-bottom: 1px solid #1f2937;
+		background-color: #111827;
 		white-space: nowrap;
-		border-top: 1px solid #374151;
 	}
 
 	.data-table td {
-		padding: 0.75rem 1rem;
-		border-bottom: 1px solid #374151;
-		color: #e5e7eb;
-		word-break: break-word;
+		padding: 0.375rem 0.625rem;
+		border-bottom: 1px solid #1f2937;
+		color: #d1d5db;
+		white-space: nowrap;
+		max-width: 260px;
+	}
+
+	.empty-state-cell {
+		text-align: center;
+		padding: 1.5rem 1rem;
+		color: #6b7280;
+		font-size: 0.8125rem;
+		white-space: normal;
 		max-width: none;
 	}
 
@@ -574,7 +678,12 @@
 	}
 
 	.data-table tbody tr.failed-row {
-		background-color: #7f1d1d;
+		background-color: rgba(251, 146, 60, 0.07);
+	}
+
+	.data-table tbody tr.failed-row td:first-child {
+		border-left: 3px solid #f97316;
+		padding-left: calc(0.625rem - 3px);
 	}
 
 	.data-table tbody tr.success-row:hover {
@@ -582,7 +691,7 @@
 	}
 
 	.data-table tbody tr.failed-row:hover {
-		background-color: #991b1b;
+		background-color: rgba(251, 146, 60, 0.13);
 	}
 
 	.data-table tbody tr:last-child td {
@@ -593,30 +702,30 @@
 		display: inline-flex;
 		align-items: center;
 		justify-content: center;
-		width: 1.5rem;
-		height: 1.5rem;
+		width: 1.25rem;
+		height: 1.25rem;
 		border-radius: 50%;
-		font-weight: bold;
-		font-size: 0.875rem;
+		font-weight: 700;
+		font-size: 0.6875rem;
+		flex-shrink: 0;
 	}
 
 	.status-indicator.success {
-		background-color: #065f46;
+		background-color: rgba(6, 95, 70, 0.5);
 		color: #34d399;
 	}
 
 	.status-indicator.failed {
-		background-color: #991b1b;
-		color: #fca5a5;
+		background-color: rgba(249, 115, 22, 0.15);
+		color: #fb923c;
 	}
 
 	.column-name {
 		font-weight: 600;
-		color: #ffffff;
+		color: #f3f4f6;
 	}
 
 	.expectation-type {
-		font-family: 'Courier New', monospace;
 		font-size: 0.8125rem;
 		color: #9ca3af;
 	}
@@ -624,22 +733,19 @@
 	.detail-value {
 		font-size: 0.8125rem;
 		color: #9ca3af;
-		white-space: normal;
-		word-wrap: break-word;
-		word-break: break-word;
-		max-width: none;
-		line-height: 1.5;
-		min-width: 200px;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		max-width: 220px;
 	}
 
 	.partial-data-cell {
 		display: flex;
 		align-items: center;
-		gap: 0.5rem;
+		gap: 0.25rem;
 	}
 
 	.partial-preview {
-		font-family: 'Courier New', monospace;
 		font-size: 0.8125rem;
 		color: #9ca3af;
 		flex: 1;
@@ -651,27 +757,25 @@
 
 	.view-details-btn {
 		background: none;
-		border: 1px solid #374151;
-		border-radius: 0.25rem;
-		color: #34d399;
+		border: none;
+		color: #4b5563;
 		cursor: pointer;
-		padding: 0.25rem 0.5rem;
+		padding: 0.1rem 0.2rem;
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		transition: all 0.2s;
+		transition: color 0.15s;
 		flex-shrink: 0;
+		line-height: 1;
 	}
 
 	.view-details-btn:hover {
-		background-color: #1f2937;
-		border-color: var(--color-primary-light);
 		color: #93c5fd;
 	}
 
 	.view-details-btn svg {
-		width: 1rem;
-		height: 1rem;
+		width: 0.875rem;
+		height: 0.875rem;
 	}
 
 	.cell-content-wrapper {
@@ -717,6 +821,41 @@
 		word-break: break-word;
 		max-width: none;
 		line-height: 1.5;
+	}
+
+	/* ── Failed row instrument lookup ─────────────────────────── */
+	.failed-clickable {
+		cursor: pointer;
+	}
+
+	.data-table tbody tr.failed-clickable:hover {
+		background-color: #7f1d1d;
+		filter: brightness(1.25);
+	}
+
+	.lookup-cell {
+		padding: 0.5rem 0.75rem !important;
+		white-space: nowrap;
+		width: 1px;
+	}
+
+	.lookup-hint {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.3rem;
+		font-size: 0.6875rem;
+		color: rgba(248, 113, 113, 0.5);
+		transition: color 0.15s;
+		white-space: nowrap;
+	}
+
+	.failed-clickable:hover .lookup-hint {
+		color: #f87171;
+	}
+
+	.lookup-hint svg {
+		width: 0.75rem;
+		height: 0.75rem;
 	}
 </style>
 

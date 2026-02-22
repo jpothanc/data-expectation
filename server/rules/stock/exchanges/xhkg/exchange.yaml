@@ -20,4 +20,11 @@
   column: RIC
   regex: '.*\.HK$'
 
+# Conditional: when SecurityType is 'Equity', CountryOfHolding must be HKG or CHN
+- type: ExpectColumnValuesToBeInSet
+  column: CountryOfHolding
+  value_set:
+    - HKG1
+    - CHN
+  #condition: "SecurityType == 'Equity'"
 

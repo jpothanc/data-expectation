@@ -3,6 +3,8 @@
 	import { goto } from '$app/navigation';
 	import HomeButton from '$lib/components/HomeButton.svelte';
 	
+	let { children } = $props();
+
 	const tabs = [
 		{ id: 'overview', label: 'Overview', path: '/analytics/overview', title: 'Analytics Dashboard' },
 		{ id: 'trends', label: 'Trends', path: '/analytics/trends', title: 'Failure Trends' },
@@ -33,9 +35,10 @@
 <div class="analytics-layout">
 	<nav class="tabs-nav">
 		<HomeButton size="medium" />
+		<span class="nav-divider"></span>
 		{#each tabs as tab}
 			<button
-				class="tab-button {activeTab === tab.id ? 'active' : ''}"
+				class="tab-link {activeTab === tab.id ? 'active' : ''}"
 				onclick={() => navigateToTab(tab.path)}
 				type="button"
 			>
@@ -44,9 +47,9 @@
 		{/each}
 		<h1 class="header-title">{pageTitle}</h1>
 	</nav>
-	
+
 	<main class="analytics-content">
-		<slot />
+		{@render children()}
 	</main>
 </div>
 
@@ -55,84 +58,92 @@
 		min-height: 100vh;
 		background: linear-gradient(180deg, #000000 0%, #0a0a0f 100%);
 	}
-	
+
 	.tabs-nav {
 		display: flex;
-		align-items: center;
-		gap: 0.5rem;
-		padding: 1rem 2.5rem;
+		align-items: stretch;
+		height: 42px;
+		padding: 0 1.5rem;
 		background-color: #111827;
-		border-bottom: 2px solid var(--color-border);
-		flex-wrap: wrap;
+		border-bottom: 1px solid #1f2937;
+		gap: 0;
 	}
 
 	.tabs-nav :global(.home-button) {
-		margin-right: 0.5rem;
+		align-self: center;
+		flex-shrink: 0;
 	}
-	
+
+	.nav-divider {
+		width: 1px;
+		background: #1f2937;
+		margin: 8px 0.75rem 8px 0.75rem;
+		flex-shrink: 0;
+	}
+
 	.header-title {
-		margin: 0;
-		margin-left: auto;
-		font-size: 1.25rem;
-		font-weight: 600;
-		color: #ffffff;
-		letter-spacing: -0.01em;
-		padding-left: 1rem;
-	}
-	
-	.tab-button {
-		padding: 0.625rem 1.25rem;
-		background-color: transparent;
-		border: 1px solid #374151;
-		border-radius: 0.5rem;
-		color: #9ca3af;
+		margin: 0 0 0 auto;
+		align-self: center;
 		font-size: 0.875rem;
 		font-weight: 500;
-		cursor: pointer;
-		transition: all 0.2s ease;
+		color: #6b7280;
+		letter-spacing: 0;
+		padding-left: 1rem;
+		white-space: nowrap;
+	}
+
+	.tab-link {
 		position: relative;
+		background: transparent;
+		border: none;
+		padding: 0 0.875rem;
+		color: #6b7280;
+		font-size: 0.8125rem;
+		font-weight: 500;
+		cursor: pointer;
+		transition: color 0.15s;
+		white-space: nowrap;
+		flex-shrink: 0;
 	}
-	
-	.tab-button:hover {
-		background-color: #1f2937;
-		border-color: var(--color-primary-light);
-		color: #e5e7eb;
+
+	.tab-link:hover {
+		color: #d1d5db;
 	}
-	
-	.tab-button.active {
-		background: var(--gradient-primary);
-		border-color: var(--color-primary-dark);
-		color: white;
-		box-shadow: 0 2px 8px var(--shadow-medium);
+
+	.tab-link.active {
+		color: #fff;
 	}
-	
-	.tab-button.active::after {
+
+	.tab-link.active::after {
 		content: '';
 		position: absolute;
-		bottom: -2px;
-		left: 0;
-		right: 0;
+		bottom: 0;
+		left: 0.25rem;
+		right: 0.25rem;
 		height: 2px;
-		background: var(--gradient-hover);
+		background: var(--gradient-primary);
+		border-radius: 2px 2px 0 0;
 	}
-	
+
 	.analytics-content {
 		padding: 0;
 	}
-	
+
 	@media (max-width: 768px) {
 		.tabs-nav {
-			padding: 1rem;
+			padding: 0 1rem;
+			height: auto;
+			flex-wrap: wrap;
+			min-height: 42px;
 		}
-		
-		.tab-button {
-			font-size: 0.8125rem;
-			padding: 0.5rem 1rem;
+
+		.tab-link {
+			font-size: 0.75rem;
+			padding: 0.625rem 0.625rem;
 		}
-		
+
 		.header-title {
-			font-size: 1rem;
-			padding-left: 0.5rem;
+			display: none;
 		}
 	}
 </style>

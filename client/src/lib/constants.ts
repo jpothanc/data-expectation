@@ -6,14 +6,19 @@ export interface AppConfig {
 		baseUrl: string;
 		endpoints: {
 			validateStock: string;
+			validateFuture: string;
+			validateOption: string;
 			validateCustom: string;
 			validateByMasterId: string;
 			rules: string;
+			rulesFuture: string;
+			rulesOption: string;
 			rulesYaml: string;
 			combinedRuleNames: string;
 			combinedRuleDetails: string;
 			combinedRuleDetailsYaml: string;
 			instrumentsByExchange: string;
+			instrumentsByExchangeFilter: string;
 			instrumentById: string;
 			instrumentByRic: string;
 			exchanges: string;
@@ -27,6 +32,8 @@ export interface AppConfig {
 			validationExchangeResults: string;
 			validationRegionalTrends: string;
 			validationRegionDateResults: string;
+			validationRunSessions: string;
+			excelReport: string;
 		};
 	};
 	exchanges: Exchange[];

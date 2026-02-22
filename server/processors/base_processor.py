@@ -1,7 +1,11 @@
 """Base processor interface for all instrument processors."""
 
+import logging
+import time
 from abc import ABC, abstractmethod
 from loaders.base import DataLoader
+
+logger = logging.getLogger(__name__)
 
 
 class BaseProcessor(ABC):
@@ -56,14 +60,17 @@ class BaseProcessor(ABC):
         Returns:
             ValidationResult: The validation results
         """
-        df = self._load_data(source)
-        
-        # Use exchange parameter if provided, otherwise use instance exchange
         exchange_to_use = exchange if exchange is not None else self.exchange
-        
         rule_info = self._format_rule_info(exchange_to_use, custom_rule_names, custom_rules)
-        print(f"\n{rule_info}")
-        
+        logger.info("%s", rule_info)
+
+        t0 = time.perf_counter()
+        df = self._load_data(source)
+        load_ms = (time.perf_counter() - t0) * 1000
+        logger.info("[TIMING] data load for %s/%s completed in %.1f ms (%d rows)",
+                    self.product_type, exchange_to_use or source, load_ms, len(df))
+
+        t1 = time.perf_counter()
         results = self.validator.validate(
             df,
             exchange=exchange_to_use,
@@ -71,9 +78,11 @@ class BaseProcessor(ABC):
             custom_rule_names=custom_rule_names,
             product_type=self.product_type
         )
-        
+        validate_ms = (time.perf_counter() - t1) * 1000
+        logger.info("[TIMING] GE validation for %s/%s completed in %.1f ms",
+                    self.product_type, exchange_to_use or source, validate_ms)
+
         self._log_results(results)
-        
         return results
     
     def _load_data(self, source):
@@ -86,18 +95,13 @@ class BaseProcessor(ABC):
         Returns:
             pd.DataFrame: The loaded data
         """
-        print(f"Loading data from source: {source}")
-        
-        # For database loaders, pass exchange and product_type explicitly
-        # For CSV loaders, pass source (filename) as before
+        logger.debug("Loading data from source: %s", source)
         from loaders.database_loader import DatabaseDataLoader
         if isinstance(self.loader, DatabaseDataLoader):
-            # For database loaders, source is the exchange code
             df = self.loader.load(source, product_type=self.product_type, exchange=self.exchange or source)
         else:
             df = self.loader.load(source)
-        
-        print(f"Loaded {len(df)} records")
+        logger.debug("Loaded %d records from %s", len(df), source)
         return df
     
     def _format_rule_info(self, exchange, custom_rule_names, custom_rules):
@@ -125,13 +129,12 @@ class BaseProcessor(ABC):
         else:
             return "Validating data with base rules only..."
     
-    def _log_results(self, results):
-        """Log validation results."""
+    def _log_results(self, results) -> None:
+        """Log a one-line validation outcome."""
         if results.success:
-            print(f"\n✅ SUCCESS: {self.product_type.capitalize()} data is valid!")
+            logger.info("PASS | %s validation succeeded", self.product_type.capitalize())
         else:
-            print(f"\n❌ FAILURE: {self.product_type.capitalize()} data validation failed.")
-            print(results)
+            logger.warning("FAIL | %s validation failed: %s", self.product_type.capitalize(), results)
 
 
 

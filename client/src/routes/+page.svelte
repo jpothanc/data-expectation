@@ -76,6 +76,21 @@
 			<p class="card-description">Futures instrument validation</p>
 			<span class="card-status available">Available</span>
 		</button>
+
+		<button
+			class="nav-card reports-card"
+			onclick={() => navigateTo('/reports')}
+			type="button"
+		>
+			<div class="card-icon">
+				<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+				</svg>
+			</div>
+			<h2 class="card-title">Reports</h2>
+			<p class="card-description">Historical validation run reports</p>
+			<span class="card-status available">Available</span>
+		</button>
 	</div>
 </div>
 
@@ -228,6 +243,10 @@
 	.card-status.coming-soon {
 		background-color: #374151;
 		color: #9ca3af;
+	}
+
+	.reports-card .card-icon {
+		color: #a78bfa;
 	}
 
 	@media (max-width: 768px) {

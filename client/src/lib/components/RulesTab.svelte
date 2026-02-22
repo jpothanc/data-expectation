@@ -285,24 +285,25 @@
 
 	.controls {
 		display: flex;
-		gap: 1rem;
+		gap: 0.625rem;
 		align-items: center;
-		margin-bottom: 1.5rem;
+		margin-bottom: 0.875rem;
+		flex-wrap: wrap;
 	}
 
 	.filter-controls {
 		display: flex;
 		align-items: center;
-		gap: 0.75rem;
-		margin-bottom: 1.5rem;
-		padding: 0.75rem;
+		gap: 0.5rem;
+		margin-bottom: 0.875rem;
+		padding: 0.5rem 0.75rem;
 		background-color: #111827;
 		border: 1px solid #374151;
 		border-radius: 0.375rem;
 	}
 
 	.filter-label {
-		font-size: 0.875rem;
+		font-size: 0.8125rem;
 		font-weight: 500;
 		color: #9ca3af;
 		white-space: nowrap;
@@ -310,10 +311,10 @@
 
 	.filter-input {
 		flex: 1;
-		padding: 0.5rem 0.75rem;
+		padding: 0.375rem 0.625rem;
 		border: 1px solid #374151;
 		border-radius: 0.375rem;
-		font-size: 0.875rem;
+		font-size: 0.8125rem;
 		background-color: #1f2937;
 		color: #e5e7eb;
 		transition: border-color 0.2s, box-shadow 0.2s;
@@ -370,14 +371,16 @@
 	.btn {
 		background-color: var(--color-primary);
 		color: white;
-		padding: 0.5rem 1rem;
+		padding: 0.375rem 0.875rem;
 		border: none;
 		border-radius: 0.375rem;
-		font-size: 0.875rem;
+		font-size: 0.8125rem;
 		font-weight: 500;
 		cursor: pointer;
 		transition: background-color 0.2s, transform 0.1s;
 		white-space: nowrap;
+		height: 2rem;
+		box-sizing: border-box;
 	}
 
 	.btn:hover:not(:disabled) {
@@ -454,14 +457,14 @@
 		display: flex;
 		justify-content: space-between;
 		align-items: center;
-		padding: 1rem;
+		padding: 0.5rem 0.875rem;
 		background-color: #1f2937;
 		border-bottom: 1px solid #374151;
 	}
 
 	.yaml-header h3 {
 		margin: 0;
-		font-size: 1rem;
+		font-size: 0.875rem;
 		font-weight: 600;
 		color: #e5e7eb;
 	}
@@ -469,13 +472,13 @@
 	.copy-btn {
 		display: flex;
 		align-items: center;
-		gap: 0.5rem;
-		padding: 0.5rem 1rem;
+		gap: 0.35rem;
+		padding: 0.3rem 0.75rem;
 		background-color: var(--color-primary);
 		color: white;
 		border: none;
 		border-radius: 0.375rem;
-		font-size: 0.875rem;
+		font-size: 0.8125rem;
 		font-weight: 500;
 		cursor: pointer;
 		transition: background-color 0.2s, transform 0.1s;

@@ -34,20 +34,44 @@
     "database": {
       "connection_string_apac_uat": "DRIVER={ODBC Driver 17 for SQL Server};SERVER=JESS;Trusted_Connection=yes;Persist Security Info=False;Pooling=False;MultipleActiveResultSets=False;Encrypt=Yes;TrustServerCertificate=Yes;Application Name=SQL Server Management Studio;Command Timeout=0;DATABASE=Instruments;",
       "query_templates": {
-        "stock": "SELECT * FROM StockMaster WHERE Exchange = '{exchange}'",
-        "option": "SELECT * FROM OptionMaster WHERE Exchange = '{exchange}'",
-        "future": "SELECT * FROM FutureMaster WHERE Exchange = '{exchange}'"
+        "stock": "SELECT * FROM StockMaster WHERE Exchange = :exchange",
+        "option": "SELECT * FROM OptionMaster WHERE Exchange = :exchange",
+        "future": "SELECT * FROM FutureMaster WHERE Exchange = :exchange"
       }
     }
   },
   "database": {
     "connection_string_apac_uat": "DRIVER={ODBC Driver 17 for SQL Server};SERVER=(localdb)\\MSSQLLocalDB;DATABASE=Instruments;Trusted_Connection=yes;"
   },
+  "server": {
+    "host": "0.0.0.0",
+    "port": 5006,
+    "debug": true,
+    "cors_origins": "*"
+  },
+  "cache": {
+    "type": "SimpleCache",
+    "default_timeout_seconds": 300,
+    "exchange_list_timeout_seconds": 300,
+    "validation_timeout_seconds": 60
+  },
+  "db_pool": {
+    "pool_size": 5,
+    "max_overflow": 15,
+    "pool_recycle_seconds": 3600,
+    "pool_pre_ping": true
+  },
+  "api_limits": {
+    "rule_failures_default": 50,
+    "exchange_results_default": 200,
+    "report_instruments_max": 500,
+    "run_sessions_lookback_days": 90
+  },
   "logging": {
     "log_folder": "log",
     "log_file": "data-ex-api.log",
     "level": "INFO",
-    "format": "%(asctime)s - %(levelname)s - %(message)s"
+    "format": "%(asctime)s [%(levelname)s] %(name)s | %(message)s"
   },
   "rules": {
     "rules_dir": "rules"

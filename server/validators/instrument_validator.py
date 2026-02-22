@@ -1,9 +1,14 @@
 """Great Expectations validator for instrument data."""
 
+import logging
+import time
+
 import great_expectations as gx
 import great_expectations.expectations as gxe
 import pandas as pd
 from .rule_loader import RuleLoader
+
+logger = logging.getLogger(__name__)
 
 
 class InstrumentValidator:
@@ -19,35 +24,30 @@ class InstrumentValidator:
             exchange: Optional exchange code (e.g., 'HKG', 'NYSE') to apply exchange-specific rules
             product_type: Optional product type (e.g., 'stock', 'future', 'options') to apply product type-specific rules
         """
-        # Get rules directory from config if not provided
         if rules_dir is None:
             try:
                 from config.config_service import ConfigService
                 config_service = ConfigService()
                 rules_dir = config_service.get_rules_dir()
             except Exception:
-                # Fallback to default if config service fails
                 rules_dir = "config/rules"
-        
-        # Initialize Great Expectations context
-        # Use ephemeral mode to avoid file handle issues and conflicts
+
+        t0 = time.perf_counter()
         context_errors = []
         try:
-            # Try ephemeral mode first (best for concurrent requests)
             self.context = gx.get_context(mode="ephemeral")
         except Exception as e1:
-            context_errors.append(f"Ephemeral mode failed: {str(e1)}")
-            # Fallback to regular context
+            context_errors.append(f"Ephemeral mode failed: {e1}")
             try:
                 self.context = gx.get_context()
             except Exception as e2:
-                context_errors.append(f"Regular context failed: {str(e2)}")
-                # If both fail, raise with detailed error
+                context_errors.append(f"Regular context failed: {e2}")
                 raise Exception(
                     f"Failed to initialize Great Expectations context. "
                     f"Errors: {'; '.join(context_errors)}. "
-                    f"This may be due to YAML parsing issues or file handle conflicts."
+                    "This may be due to YAML parsing issues or file handle conflicts."
                 )
+        logger.debug("[TIMING] GE context init completed in %.1f ms", (time.perf_counter() - t0) * 1000)
         
         self.context_name = context_name
         self.exchange = exchange
@@ -192,6 +192,12 @@ class InstrumentValidator:
             params['max_value'] = rule['max_value']
         if 'regex' in rule:
             params['regex'] = rule['regex']
+
+        # Support conditional rules: only validate rows where condition is true.
+        # Uses pandas query syntax, e.g. condition: "SecurityType == 'Bond'"
+        if 'condition' in rule and rule['condition']:
+            params['row_condition'] = rule['condition']
+            params['condition_parser'] = 'pandas'
         
         try:
             return expectation_class(**params)
@@ -329,15 +335,24 @@ class InstrumentValidator:
         Returns:
             ValidationResult: The validation results
         """
+        t0 = time.perf_counter()
         suite = self.create_expectation_suite(
-            suite_name, 
+            suite_name,
             exchange=exchange,
             custom_rules=custom_rules,
             custom_rule_names=custom_rule_names,
-            product_type=product_type
+            product_type=product_type,
         )
+        logger.debug("[TIMING] create_expectation_suite for %s/%s: %.1f ms",
+                     product_type or self.product_type, exchange or self.exchange,
+                     (time.perf_counter() - t0) * 1000)
+
+        t1 = time.perf_counter()
         batch = self.batch_definition.get_batch(batch_parameters={"dataframe": df})
         results = batch.validate(suite)
+        logger.info("[TIMING] GE batch.validate for %s/%s: %.1f ms (%d expectations)",
+                    product_type or self.product_type, exchange or self.exchange,
+                    (time.perf_counter() - t1) * 1000, len(suite.expectations))
         return results
     
     def validate_custom_only(self, df, suite_name="instruments_suite", custom_rules=None, custom_rule_names=None, exchange=None, product_type=None):

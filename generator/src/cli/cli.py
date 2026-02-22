@@ -104,7 +104,15 @@ Examples:
             type=str,
             help='Database connection string (optional, will use config.json if not provided)'
         )
-        
+
+        parser.add_argument(
+            '--workers',
+            type=int,
+            default=4,
+            metavar='N',
+            help='Number of concurrent exchange validations per region (default: 4)'
+        )
+
         return parser
     
     def setup_logging(self, verbose=False):
@@ -153,7 +161,8 @@ Examples:
             return None
         return [rule.strip() for rule in custom_rules_str.split(',')]
     
-    def run_validation(self, regions, custom_rule_names, api_url, config_path, save_to_database=False, database_connection=None):
+    def run_validation(self, regions, custom_rule_names, api_url, config_path,
+                       save_to_database=False, database_connection=None, max_workers=4):
         """Run batch validation for one or more regions."""
         validator = None
         try:
@@ -188,7 +197,8 @@ Examples:
                 summary = validator.validate_region(
                     region=region,
                     custom_rule_names=custom_rule_names,
-                    verbose=True
+                    verbose=True,
+                    max_workers=max_workers,
                 )
                 
                 all_summaries.append(summary)
@@ -267,6 +277,7 @@ Examples:
             args.api_url or get_api_base_url(),
             args.config,
             save_to_database=args.save_to_database,
-            database_connection=args.database_connection
+            database_connection=args.database_connection,
+            max_workers=args.workers,
         )
 

@@ -6,65 +6,57 @@
 	let { items }: Props = $props();
 </script>
 
-<div class="summary-section">
-	<div class="summary-card">
-		{#each items as item}
-			<div class="summary-item">
-				<span class="summary-label">{item.label}</span>
-				<span class="summary-value {item.highlight || ''}">
-					{item.value}
-				</span>
-			</div>
-		{/each}
-	</div>
+<div class="summary-bar">
+	{#each items as item, i}
+		{#if i > 0}<span class="sep">·</span>{/if}
+		<span class="item">
+			<span class="lbl">{item.label}</span>
+			<span class="val {item.highlight || ''}">{item.value}</span>
+		</span>
+	{/each}
 </div>
 
 <style>
-	.summary-section {
-		margin-top: 1rem;
-		margin-bottom: 1rem;
-	}
-
-	.summary-card {
-		display: grid;
-		grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-		gap: 0.75rem;
-		padding: 1rem;
-		background-color: #111827;
-		border: 1px solid #374151;
-		border-radius: 0.5rem;
-	}
-
-	.summary-item {
+	.summary-bar {
 		display: flex;
-		flex-direction: column;
-		gap: 0.25rem;
+		align-items: center;
+		flex-wrap: wrap;
+		gap: 0.25rem 0;
+		padding: 0.4rem 0.75rem;
+		background-color: #111827;
+		border: 1px solid #1f2937;
+		border-radius: 0.375rem;
+		margin-bottom: 0.75rem;
+		font-size: 0.8125rem;
 	}
 
-	.summary-label {
+	.sep {
+		color: #374151;
+		padding: 0 0.625rem;
+		user-select: none;
+	}
+
+	.item {
+		display: inline-flex;
+		align-items: baseline;
+		gap: 0.375rem;
+	}
+
+	.lbl {
 		font-size: 0.6875rem;
-		font-weight: 600;
-		color: #9ca3af;
+		font-weight: 500;
+		color: #6b7280;
 		text-transform: uppercase;
 		letter-spacing: 0.05em;
 	}
 
-	.summary-value {
-		font-size: 1rem;
+	.val {
 		font-weight: 600;
-		color: #ffffff;
+		color: #e5e7eb;
 	}
 
-	.summary-value.success {
-		color: #34d399;
-	}
-
-	.summary-value.failed {
-		color: #f87171;
-	}
-
-	.summary-value.info {
-		color: #34d399;
-	}
+	.val.success { color: #34d399; }
+	.val.failed  { color: #fb923c; }
+	.val.info    { color: #34d399; }
 </style>
 

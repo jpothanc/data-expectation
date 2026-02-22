@@ -4,6 +4,7 @@
 	import GroupedBarChart from '../GroupedBarChart.svelte';
 	import DataTable from '../DataTable.svelte';
 	import ChartCard from '../ChartCard.svelte';
+	import ExpectationFailureModal from '../ExpectationFailureModal.svelte';
 	import type { GlobalViewData, HeatmapData, RuleFailureByRegionData, ExpectationFailureByRegionData } from '$lib/services/api';
 
 	interface Props {
@@ -18,6 +19,8 @@
 
 	let selectedRegionFilter = $state<string | null>(null);
 	let selectedProductTypeFilter = $state<string | null>(null);
+	let selectedExpectationFailure = $state<Record<string, any> | null>(null);
+	let showExpectationFailureModal = $state(false);
 
 	function getExpectationTableData() {
 		if (expectationFailuresByRegionData.length === 0) {
@@ -68,6 +71,16 @@
 
 	function handleProductTypeFilter(productType: string | null) {
 		selectedProductTypeFilter = productType;
+	}
+
+	function handleRowClick(row: Record<string, any>, index: number) {
+		selectedExpectationFailure = row;
+		showExpectationFailureModal = true;
+	}
+
+	function closeExpectationFailureModal() {
+		showExpectationFailureModal = false;
+		selectedExpectationFailure = null;
 	}
 
 	// Get available regions from data
@@ -171,6 +184,7 @@
 					headers={expectationTableData.headers}
 					data={expectationTableData.data}
 					maxHeight="500px"
+					onRowClick={handleRowClick}
 				/>
 			{:else}
 				<div class="no-data-message">
@@ -184,6 +198,12 @@
 		{/if}
 	</ChartCard>
 </div>
+
+<ExpectationFailureModal 
+	open={showExpectationFailureModal}
+	data={selectedExpectationFailure}
+	onClose={closeExpectationFailureModal}
+/>
 
 <style>
 	.section-grid {

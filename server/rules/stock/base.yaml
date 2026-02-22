@@ -40,3 +40,20 @@
   min_value: 1
 
 
+# Conditional rules: only validated for rows where the condition is true.
+# Syntax uses pandas query expressions in the `condition` field.
+
+# When SecurityType is 'Bond', IssueType must be 'BD'
+- type: ExpectColumnValuesToBeInSet
+  column: IssueType
+  value_set:
+    - BD
+  condition: "SecurityType == 'Bond'"
+
+# When SecurityType is 'Equity', IssueType must be 'EQ'
+- type: ExpectColumnValuesToBeInSet
+  column: IssueType
+  value_set:
+    - EQ
+  condition: "SecurityType == 'Equity'"
+

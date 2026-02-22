@@ -1,145 +1,138 @@
-"""API client for calling validation endpoints."""
+"""API client for the validation endpoints.
+
+Uses a persistent requests.Session (connection pooling at the HTTP layer),
+configurable timeouts, and automatic retry with exponential backoff for
+transient failures (timeouts, 5xx errors).
+"""
+
+import time
+import logging
 
 import requests
-import logging
 
 logger = logging.getLogger(__name__)
 
+_DEFAULT_TIMEOUT = 120      # seconds — generous for large exchanges
+_DEFAULT_RETRIES = 3
+_RETRY_BACKOFF = [1, 2, 4]  # sleep seconds between successive retries
+
+# HTTP status codes that are safe to retry
+_RETRYABLE_STATUS = {429, 500, 502, 503, 504}
+
 
 class ValidationAPIClient:
-    """Client for calling validation API endpoints."""
-    
+    """Call validation API endpoints with retry and backoff."""
+
     def __init__(self, base_url="http://127.0.0.1:5006"):
-        """
-        Initialize API client.
-        
-        Args:
-            base_url: Base URL of the validation API
-        """
         self.base_url = base_url.rstrip('/')
         self.session = requests.Session()
         self.session.headers.update({
             'Content-Type': 'application/json',
-            'Accept': 'application/json'
+            'Accept': 'application/json',
         })
-    
-    def validate_exchange(self, product_type, exchange, custom_rule_names=None, timeout=30):
-        """
-        Call validation API for a specific product type and exchange.
-        
+
+    # ------------------------------------------------------------------
+    # Public API
+    # ------------------------------------------------------------------
+
+    def validate_exchange(self, product_type, exchange, custom_rule_names=None,
+                          timeout=_DEFAULT_TIMEOUT, max_retries=_DEFAULT_RETRIES):
+        """Call validate endpoint for *product_type* / *exchange*.
+
         Args:
-            product_type: Product type (e.g., 'stock', 'future', 'option')
-            exchange: Exchange code (e.g., 'XHKG', 'XNSE', 'XTKS')
-            custom_rule_names: Optional list of custom rule names
-            timeout: Request timeout in seconds
-            
+            product_type: 'stock', 'option', or 'future'.
+            exchange: Exchange code e.g. 'XHKG'.
+            custom_rule_names: Optional list of rule names to pass as query param.
+            timeout: Per-attempt request timeout in seconds.
+            max_retries: Total attempts (first attempt + retries).
+
         Returns:
-            Dictionary containing validation results
-            
+            dict — parsed JSON response body.
+
         Raises:
-            requests.RequestException: If API call fails
+            Exception — after all retries exhausted, or on non-retryable errors.
         """
         url = f"{self.base_url}/api/v1/rules/validate/{product_type}/{exchange}"
-        
         params = {}
         if custom_rule_names:
             params['custom_rule_names'] = ','.join(custom_rule_names)
-        
-        # Build full URL with query string for logging
-        full_url = url
-        if params:
-            query_string = '&'.join([f"{k}={v}" for k, v in params.items()])
-            full_url = f"{url}?{query_string}"
-        
-        # Log API call details
-        print(f"  📡 API Call: GET {full_url}")
-        if params:
-            print(f"     Parameters: {params}")
-        
+
+        return self._get_with_retry(url, params, timeout, max_retries,
+                                    context=f"{product_type}/{exchange}")
+
+    def health_check(self, timeout=5):
+        """Return True if the API is up."""
+        url = f"{self.base_url}/health"
         try:
-            logger.debug(f"Calling API: {url} with params: {params}")
-            response = self.session.get(url, params=params, timeout=timeout)
-            
-            # Log response details
-            print(f"  📥 Response Status: {response.status_code}")
-            logger.debug(f"Response status: {response.status_code}")
-            
-            if response.status_code != 200:
-                logger.debug(f"Response text: {response.text[:500]}")
-                print(f"  ⚠️  Response Error: {response.text[:200]}")
-            
-            response.raise_for_status()
-            
-            # Try to parse JSON response
-            try:
-                result = response.json()
-                print(f"  ✅ API Call Successful")
-                print(f"  📊 Response Summary: success={result.get('success', 'N/A')}, total_expectations={result.get('total_expectations', 'N/A')}, failed={result.get('failed_expectations', 'N/A')}")
-                return result
-            except ValueError as json_error:
-                # If JSON parsing fails, show detailed error
-                print(f"  ❌ JSON Parse Error: {str(json_error)}")
-                print(f"  📄 Response Content (first 500 chars): {response.text[:500]}")
-                print(f"  📄 Response Content Type: {response.headers.get('Content-Type', 'unknown')}")
-                
-                # Try to identify the issue
-                if 'np.' in response.text or 'nan' in response.text:
-                    print(f"  ⚠️  Warning: Response contains numpy types or NaN values that may cause parsing issues")
-                
-                error_msg = f"Invalid JSON response: {str(json_error)}. Response preview: {response.text[:200]}"
-                raise Exception(error_msg)
-            except Exception as parse_error:
-                # Catch any other parsing errors
-                print(f"  ❌ Parse Error: {str(parse_error)}")
-                print(f"  📄 Response Content (first 500 chars): {response.text[:500]}")
-                raise Exception(f"Failed to parse response: {str(parse_error)}")
-            
-        except requests.exceptions.HTTPError as e:
-            response = e.response
-            if response is not None:
-                try:
-                    error_text = response.text[:200] if response.text else ""
-                    error_msg = f"HTTP {response.status_code}"
-                    if error_text:
-                        error_msg += f": {error_text}"
-                    else:
-                        error_msg += f": {str(e)}"
-                except:
-                    error_msg = f"HTTP {response.status_code}: {str(e)}"
-            else:
-                error_msg = f"HTTP Error: {str(e)}"
-            logger.error(f"API call failed for {product_type}/{exchange}: {error_msg}")
-            raise Exception(error_msg) from e
-        except requests.exceptions.ConnectionError as e:
-            error_msg = f"Connection error: Unable to connect to {url}"
-            logger.error(f"API call failed for {product_type}/{exchange}: {error_msg}")
-            raise Exception(error_msg) from e
-        except requests.exceptions.Timeout as e:
-            error_msg = f"Request timeout: API did not respond within {timeout} seconds"
-            logger.error(f"API call failed for {product_type}/{exchange}: {error_msg}")
-            raise Exception(error_msg) from e
-        except requests.exceptions.RequestException as e:
-            error_msg = str(e) if str(e) else f"Request failed: {type(e).__name__}"
-            logger.error(f"API call failed for {product_type}/{exchange}: {error_msg}")
-            raise Exception(error_msg) from e
-    
-    def health_check(self):
-        """
-        Check if API is available.
-        
-        Returns:
-            True if API is healthy, False otherwise
-        """
-        try:
-            url = f"{self.base_url}/health"
-            print(f"  🔍 Health Check: GET {url}")
-            response = self.session.get(url, timeout=5)
-            is_healthy = response.status_code == 200
-            if is_healthy:
-                print(f"  ✅ API Health Check: OK")
-            else:
-                print(f"  ❌ API Health Check: Failed (Status: {response.status_code})")
-            return is_healthy
-        except requests.exceptions.RequestException as e:
-            print(f"  ❌ API Health Check: Connection Failed - {str(e)}")
+            resp = self.session.get(url, timeout=timeout)
+            return resp.status_code == 200
+        except requests.exceptions.RequestException:
             return False
+
+    # ------------------------------------------------------------------
+    # Internals
+    # ------------------------------------------------------------------
+
+    def _get_with_retry(self, url, params, timeout, max_retries, context=""):
+        last_exc = None
+
+        for attempt in range(max_retries):
+            try:
+                resp = self.session.get(url, params=params, timeout=timeout)
+
+                if resp.status_code in _RETRYABLE_STATUS and attempt < max_retries - 1:
+                    delay = _RETRY_BACKOFF[min(attempt, len(_RETRY_BACKOFF) - 1)]
+                    logger.warning(
+                        "HTTP %s for %s (attempt %d/%d) — retrying in %ds",
+                        resp.status_code, context, attempt + 1, max_retries, delay
+                    )
+                    time.sleep(delay)
+                    continue
+
+                resp.raise_for_status()
+                return self._parse_json(resp, context)
+
+            except requests.exceptions.Timeout as exc:
+                last_exc = exc
+                if attempt < max_retries - 1:
+                    delay = _RETRY_BACKOFF[min(attempt, len(_RETRY_BACKOFF) - 1)]
+                    logger.warning(
+                        "Timeout for %s (attempt %d/%d) — retrying in %ds",
+                        context, attempt + 1, max_retries, delay
+                    )
+                    time.sleep(delay)
+                else:
+                    raise Exception(
+                        f"Request timed out after {max_retries} attempts: {url}"
+                    ) from exc
+
+            except requests.exceptions.HTTPError as exc:
+                resp = exc.response
+                body = resp.text[:200] if resp is not None else ""
+                raise Exception(
+                    f"HTTP {resp.status_code if resp is not None else '?'}: {body}"
+                ) from exc
+
+            except requests.exceptions.ConnectionError as exc:
+                raise Exception(
+                    f"Connection error — cannot reach {url}"
+                ) from exc
+
+            except requests.exceptions.RequestException as exc:
+                raise Exception(str(exc)) from exc
+
+        # Should only be reached if the retry loop exits without returning
+        raise Exception(
+            f"Failed after {max_retries} attempts: {url}"
+        ) from last_exc
+
+    @staticmethod
+    def _parse_json(response, context=""):
+        """Parse the response body as JSON; raise on malformed content."""
+        try:
+            return response.json()
+        except ValueError as exc:
+            preview = response.text[:300]
+            raise Exception(
+                f"Invalid JSON response for {context}. Preview: {preview}"
+            ) from exc

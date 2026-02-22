@@ -3,15 +3,23 @@
 import logging
 import os
 import sys
+import time
 
-from flask import Flask, jsonify
+from flask import Flask, jsonify, g, request
 from flask_cors import CORS
+from flask_caching import Cache
 from flasgger import Swagger
 
 from controllers.instrument_controller import instrument_api
 from controllers.rule_controller import rule_api
 from controllers.validation_controller import validation_api
+from controllers.report_controller import report_api
 from utils import QueryExporter
+
+logger = logging.getLogger(__name__)
+
+# Initialize Flask-Caching (will be configured in create_app once config is loaded)
+cache = Cache()
 
 # Swagger configuration
 SWAGGER_CONFIG = {
@@ -59,8 +67,36 @@ SWAGGER_TEMPLATE = {
 
 
 def create_app():
+    from config.config_service import ConfigService
+    _cfg = ConfigService()
+
+    server_cfg = _cfg.get_server_config()
+    cache_cfg = _cfg.get_cache_config()
+
     app = Flask(__name__)
-    CORS(app, resources={r"/api/*": {"origins": "*"}})
+    cors_origins = server_cfg.get('cors_origins', '*')
+    CORS(app, resources={r"/api/*": {"origins": cors_origins}})
+
+    # ── Request timing middleware ─────────────────────────────────────────────
+    @app.before_request
+    def _start_timer():
+        g._request_start = time.perf_counter()
+
+    @app.after_request
+    def _log_request(response):
+        if hasattr(g, '_request_start'):
+            elapsed_ms = (time.perf_counter() - g._request_start) * 1000
+            logger.info(
+                "[REQUEST] %s %s -> %s  %.1f ms",
+                request.method, request.path, response.status_code, elapsed_ms,
+            )
+        return response
+
+    # Initialize Flask-Caching with config-driven values
+    cache.init_app(app, config={
+        'CACHE_TYPE': cache_cfg.get('type', 'SimpleCache'),
+        'CACHE_DEFAULT_TIMEOUT': cache_cfg.get('default_timeout_seconds', 300),
+    })
     
     # Initialize Swagger
     Swagger(app, config=SWAGGER_CONFIG, template=SWAGGER_TEMPLATE)
@@ -68,31 +104,25 @@ def create_app():
     app.register_blueprint(instrument_api, url_prefix='/api/v1/instruments/')
     app.register_blueprint(rule_api, url_prefix='/api/v1/rules/')
     app.register_blueprint(validation_api, url_prefix='/api/v1/validation/')
+    app.register_blueprint(report_api, url_prefix='/api/v1/reports/')
+    
+    # Initialize cache for instrument_api blueprint (shares the same cache instance)
+    from controllers.instrument_controller import init_cache
+    init_cache(app, cache)
     
     return app
 def export():
+    """Export selected exchange data to CSV files (dev/utility only)."""
+    _export_logger = logging.getLogger(__name__ + ".export")
     exporter = QueryExporter()
-    query = """
-        SELECT *
-        FROM StockMaster
-        WHERE Exchange = 'XHKG'
-    """
-    csv_path = exporter.export_query_to_csv(query, "db_hkg.csv")
-    print(f"Exported to: {csv_path}")
-    query = """
-            SELECT *
-            FROM StockMaster
-            WHERE Exchange = 'XTKS'
-        """
-    csv_path = exporter.export_query_to_csv(query, "db_tks.csv")
-    print(f"Exported to: {csv_path}")
-    query = """
-            SELECT *
-            FROM StockMaster
-            WHERE Exchange = 'XNSE'
-        """
-    csv_path = exporter.export_query_to_csv(query, "db_nse.csv")
-    print(f"Exported to: {csv_path}")
+    exports = [
+        ("SELECT * FROM StockMaster WHERE Exchange = 'XHKG'", "db_hkg.csv"),
+        ("SELECT * FROM StockMaster WHERE Exchange = 'XTKS'", "db_tks.csv"),
+        ("SELECT * FROM StockMaster WHERE Exchange = 'XNSE'", "db_nse.csv"),
+    ]
+    for query, filename in exports:
+        csv_path = exporter.export_query_to_csv(query, filename)
+        _export_logger.info("Exported to: %s", csv_path)
 
 
 def init_logging():
@@ -120,12 +150,17 @@ def init_logging():
     # Convert log level string to logging constant
     numeric_level = getattr(logging, log_level.upper(), logging.INFO)
     
+    import sys
+    stream_handler = logging.StreamHandler()
+    # Reconfigure stdout to UTF-8 so Unicode chars in log messages don't crash on Windows cp1252
+    if hasattr(stream_handler.stream, 'reconfigure'):
+        stream_handler.stream.reconfigure(encoding='utf-8', errors='replace')
     logging.basicConfig(
         level=numeric_level,
         format=log_format,
         handlers=[
-            logging.FileHandler(str(log_file_path)),
-            logging.StreamHandler()
+            logging.FileHandler(str(log_file_path), encoding='utf-8'),
+            stream_handler,
         ]
     )
 
@@ -180,36 +215,81 @@ def health_check():
     return jsonify({"status": "healthy"})
 
 
-def get_environment():
-    """
-    Get environment from command line argument or environment variable.
+@app.route('/health/detailed')
+def detailed_health_check():
+    """Detailed health check endpoint with cache and connection pool stats."""
+    from controllers.instrument_controller import get_service
+    from loaders.database_loader import DatabaseDataLoader
     
+    health_data = {
+        "status": "healthy",
+        "cache": {},
+        "connection_pools": {}
+    }
+    
+    # Get cache stats
+    try:
+        # SimpleCache doesn't expose stats directly, but we can check if it's initialized
+        health_data["cache"]["type"] = "SimpleCache"
+        health_data["cache"]["status"] = "initialized" if cache else "not_initialized"
+    except Exception as e:
+        health_data["cache"]["error"] = str(e)
+    
+    # Get connection pool stats for each product type
+    try:
+        from controllers.instrument_controller import _services_cache
+        for product_type, service in _services_cache.items():
+            if isinstance(service.loader, DatabaseDataLoader):
+                pool_stats = service.loader.get_pool_stats()
+                health_data["connection_pools"][product_type] = pool_stats
+    except Exception as e:
+        health_data["connection_pools"]["error"] = str(e)
+    
+    return jsonify(health_data)
+
+
+_VALID_ENVS = ('dev', 'uat', 'prod')
+
+
+def get_environment() -> str:
+    """
+    Resolve runtime environment from CLI arg → ENV var → 'dev' default.
+
     Returns:
-        str: Environment name ('dev', 'uat', 'prod'). Defaults to 'dev'.
+        str: One of 'dev', 'uat', 'prod'.
     """
-    # Check command line arguments first
     if len(sys.argv) > 1:
-        env = sys.argv[1].lower()
-        if env in ['dev', 'uat', 'prod']:
-            return env
-        else:
-            print(f"Warning: Invalid environment '{env}'. Using default 'dev'.")
-    
-    # Check environment variable
+        candidate = sys.argv[1].lower()
+        if candidate in _VALID_ENVS:
+            return candidate
+        # Logger may not be configured yet; use stderr directly
+        print(f"WARNING: Invalid environment argument '{candidate}'. Falling back to 'dev'.", file=sys.stderr)
+
     env = os.getenv('ENV', 'dev').lower()
-    if env not in ['dev', 'uat', 'prod']:
-        print(f"Warning: Invalid ENV variable '{env}'. Using default 'dev'.")
+    if env not in _VALID_ENVS:
+        print(f"WARNING: Invalid ENV variable '{env}'. Falling back to 'dev'.", file=sys.stderr)
         return 'dev'
-    
     return env
 
 
 if __name__ == '__main__':
-    # Set environment before initializing logging and app
     env = get_environment()
     os.environ['ENV'] = env
-    
+
     init_logging()
-    # export()
-    app.run(debug=True, host='0.0.0.0', port=5006)
+
+    from config.config_service import ConfigService
+    _server_cfg = ConfigService().get_server_config()
+
+    logger.info("Starting server | env=%s  host=%s  port=%s  debug=%s",
+                env,
+                _server_cfg.get('host', '0.0.0.0'),
+                _server_cfg.get('port', 5006),
+                _server_cfg.get('debug', True))
+
+    app.run(
+        debug=_server_cfg.get('debug', True),
+        host=_server_cfg.get('host', '0.0.0.0'),
+        port=_server_cfg.get('port', 5006),
+    )
 
