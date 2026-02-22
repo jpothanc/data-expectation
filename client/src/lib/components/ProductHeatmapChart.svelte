@@ -4,7 +4,7 @@
 	import { getExchangeValidationResults, type ExchangeValidationResponse } from '../services/api';
 	import { withTimeout } from '../utils/promise';
 	import { API_TIMEOUTS } from '../constants/timeouts';
-	import ErrorDetailsPanel from './ErrorDetailsPanel.svelte';
+	import ExchangeResultsModal from './ExchangeResultsModal.svelte';
 
 	interface Props {
 		data: HeatmapData[];
@@ -46,44 +46,46 @@
 		showErrorModal = true;
 
 		try {
-			// Get exchanges from config - common exchanges
 			const exchanges = ['XHKG', 'XNSE', 'XTKS', 'XNYS'];
-			
-			// Fetch results from all exchanges in parallel and filter by region/product type
+
 			const fetchPromises = exchanges.map(async (exchange) => {
 				try {
 					const result = await withTimeout(
-						getExchangeValidationResults(exchange, days, 200), // Increased limit to get more results
+						getExchangeValidationResults(exchange, days, 200),
 						API_TIMEOUTS.STANDARD
 					);
-					
-					// Filter results by region and product type, only failed runs
-					const filteredRuns = result.runs.filter(run => 
-						run.Region?.toUpperCase() === region.toUpperCase() && 
+
+					const filteredRuns = result.runs.filter(run =>
+						run.Region?.toUpperCase() === region.toUpperCase() &&
 						run.ProductType?.toLowerCase() === productType.toLowerCase() &&
-						!run.Success // Only show failed runs
+						!run.Success
 					);
-					
-					return filteredRuns;
+
+					const filteredPassedRuns = (result.passed_runs ?? []).filter(run =>
+						run.ProductType?.toLowerCase() === productType.toLowerCase()
+					);
+
+					return { runs: filteredRuns, passed_runs: filteredPassedRuns };
 				} catch (err) {
-					// Continue with next exchange if one fails
 					console.warn(`Failed to fetch results for ${exchange}:`, err);
-					return [];
+					return { runs: [], passed_runs: [] };
 				}
 			});
-			
-			// Wait for all requests to complete
-			const allFilteredRuns = await Promise.all(fetchPromises);
-			const combinedRuns = allFilteredRuns.flat();
-			
-			if (combinedRuns.length > 0) {
+
+			const allResults = await Promise.all(fetchPromises);
+			const combinedRuns = allResults.flatMap(r => r.runs);
+			const combinedPassedRuns = allResults.flatMap(r => r.passed_runs);
+
+			if (combinedRuns.length > 0 || combinedPassedRuns.length > 0) {
 				errorDetails = {
 					exchange: `${region} - ${productType}`,
-					total_runs: combinedRuns.length,
-					runs: combinedRuns
+					days,
+					total_runs: combinedRuns.length + combinedPassedRuns.length,
+					runs: combinedRuns,
+					passed_runs: combinedPassedRuns
 				};
 			} else {
-				errorDetailsError = 'No error details found for this region and product type combination';
+				errorDetailsError = 'No validation results found for this region and product type combination';
 			}
 		} catch (err) {
 			console.error('Error fetching error details:', err);
@@ -222,14 +224,29 @@
 </div>
 
 {#if showErrorModal}
-	<ErrorDetailsPanel
-		isOpen={showErrorModal}
-		title={selectedRegion && selectedProductType ? `${selectedRegion} - ${selectedProductType}` : 'Error Details'}
-		results={errorDetails?.runs || []}
-		loading={loadingDetails}
-		error={errorDetailsError}
-		onClose={closeErrorModal}
-	/>
+	{#if loadingDetails}
+		<div class="loading-overlay" onclick={closeErrorModal} role="dialog" aria-modal="true">
+			<div class="loading-box" onclick={(e) => e.stopPropagation()}>
+				<div class="spinner"></div>
+				<p>Loading results for {selectedRegion} – {selectedProductType}…</p>
+			</div>
+		</div>
+	{:else if errorDetailsError}
+		<div class="loading-overlay" onclick={closeErrorModal} role="dialog" aria-modal="true">
+			<div class="loading-box error-box" onclick={(e) => e.stopPropagation()}>
+				<p>{errorDetailsError}</p>
+				<button class="close-btn" onclick={closeErrorModal} type="button">Close</button>
+			</div>
+		</div>
+	{:else if errorDetails}
+		<ExchangeResultsModal
+			exchange={errorDetails.exchange}
+			results={errorDetails.runs}
+			passedRuns={errorDetails.passed_runs ?? []}
+			{days}
+			onClose={closeErrorModal}
+		/>
+	{/if}
 {/if}
 
 <style>
@@ -415,125 +432,59 @@
 		border: 1px dashed #374151;
 	}
 
-	.modal-overlay {
-		position: fixed !important;
-		top: 0 !important;
-		left: 0 !important;
-		right: 0 !important;
-		bottom: 0 !important;
-		width: 100vw !important;
-		height: 100vh !important;
+	.loading-overlay {
+		position: fixed;
+		inset: 0;
 		background-color: rgba(0, 0, 0, 0.75);
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		z-index: 99999 !important;
-		overflow-y: auto;
-		pointer-events: auto;
-		margin: 0 !important;
-		padding: 0 !important;
-		backface-visibility: hidden;
-		-webkit-backface-visibility: hidden;
-		transform: translateZ(0);
-		-webkit-transform: translateZ(0);
-		will-change: auto;
+		z-index: 99999;
 	}
 
-	.modal-content {
+	.loading-box {
 		background-color: #1f2937;
-		border-radius: 0.5rem;
-		padding: 1rem;
-		max-width: 600px;
-		width: 90vw;
-		max-height: 80vh;
-		overflow-y: auto;
 		border: 1px solid #374151;
-		box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
-		backface-visibility: hidden;
-		-webkit-backface-visibility: hidden;
-		flex-shrink: 0;
-		position: fixed !important;
-		top: 50% !important;
-		left: 50% !important;
-		transform: translate(-50%, -50%) translateZ(0) !important;
-		-webkit-transform: translate(-50%, -50%) translateZ(0) !important;
-		margin: 0 !important;
-		will-change: auto;
-	}
-
-	/* Custom scrollbar styling with theme */
-	.modal-content::-webkit-scrollbar {
-		width: 10px;
-	}
-
-	.modal-content::-webkit-scrollbar-track {
-		background: #111827;
-		border-radius: 5px;
-	}
-
-	.modal-content::-webkit-scrollbar-thumb {
-		background: var(--color-primary-dark);
-		border-radius: 5px;
-		border: 2px solid #111827;
-	}
-
-	.modal-content::-webkit-scrollbar-thumb:hover {
-		background: var(--color-primary);
-	}
-
-	/* Firefox scrollbar */
-	.modal-content {
-		scrollbar-width: thin;
-		scrollbar-color: var(--color-primary-dark) #111827;
-	}
-
-	.loading-modal,
-	.error-modal,
-	.no-data-modal {
+		border-radius: 0.5rem;
+		padding: 2rem 2.5rem;
 		display: flex;
 		flex-direction: column;
 		align-items: center;
-		justify-content: center;
 		gap: 1rem;
-		min-width: 300px;
+		min-width: 280px;
 		text-align: center;
 	}
 
-	.loading-modal p,
-	.error-modal p,
-	.no-data-modal p {
-		color: #9ca3af;
+	.loading-box p {
 		margin: 0;
+		color: #9ca3af;
+		font-size: 0.875rem;
 	}
 
-	.error-modal h2,
-	.no-data-modal h2 {
+	.error-box p {
 		color: #f87171;
-		margin: 0 0 0.5rem 0;
 	}
 
 	.close-btn {
-		padding: 0.5rem 1rem;
-		background-color: var(--color-primary-dark);
-		color: white;
-		border: none;
+		padding: 0.375rem 1rem;
+		background-color: #374151;
+		color: #e5e7eb;
+		border: 1px solid #4b5563;
 		border-radius: 0.375rem;
 		cursor: pointer;
-		font-size: 0.875rem;
-		font-weight: 500;
-		margin-top: 1rem;
-		transition: background-color 0.2s;
+		font-size: 0.8125rem;
+		transition: background-color 0.15s;
 	}
 
 	.close-btn:hover {
-		background-color: var(--color-primary);
+		background-color: #4b5563;
 	}
 
 	.spinner {
-		width: 3rem;
-		height: 3rem;
+		width: 2.5rem;
+		height: 2.5rem;
 		border: 3px solid #374151;
-		border-top-color: var(--color-primary-light);
+		border-top-color: #34d399;
 		border-radius: 50%;
 		animation: spin 1s linear infinite;
 	}

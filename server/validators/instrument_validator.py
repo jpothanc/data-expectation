@@ -61,46 +61,60 @@ class InstrumentValidator:
     
     def _setup_data_source(self):
         """Setup the pandas data source for validation.
-        
-        Uses unique names per thread/request to avoid conflicts in parallel processing.
+
+        Uses unique UUIDs per call to avoid name conflicts under concurrent load.
+        Retries up to 3 times when GE's internal BytesIO buffer is closed prematurely
+        (a known transient error in ephemeral mode under parallel requests).
         """
-        import threading
         import uuid
-        # Use UUID to create truly unique datasource names per request
-        # This ensures no conflicts even with rapid concurrent requests
-        unique_id = str(uuid.uuid4())[:8]
-        source_name = f"instruments_pandas_source_{unique_id}"
-        asset_name = f"instruments_dataframe_asset_{unique_id}"
-        batch_def_name = f"instruments_batch_def_{unique_id}"
-        
-        # Since we're using ephemeral mode, always create fresh datasources
-        # Ephemeral contexts are temporary and don't persist between instances
-        # Using UUID ensures no conflicts between concurrent requests
-        try:
-            # Always create fresh with unique names - no conflicts possible
-            self.data_source = self.context.data_sources.add_pandas(source_name)
-            self.data_asset = self.data_source.add_dataframe_asset(name=asset_name)
-            self.batch_definition = self.data_asset.add_batch_definition_whole_dataframe(batch_def_name)
-        except Exception as e:
-            # If creation fails due to YAML/config issues, try a simpler approach
-            error_msg = str(e)
-            if "NodeEvent" in error_msg or "DocumentStartEvent" in error_msg:
-                # YAML parsing error - might be Great Expectations config issue
-                # Try creating with minimal configuration
-                try:
-                    # Create with even simpler unique name
-                    simple_id = str(uuid.uuid4()).replace('-', '')[:12]
-                    simple_source = f"src_{simple_id}"
-                    simple_asset = f"asset_{simple_id}"
-                    simple_batch = f"batch_{simple_id}"
-                    
-                    self.data_source = self.context.data_sources.add_pandas(simple_source)
-                    self.data_asset = self.data_source.add_dataframe_asset(name=simple_asset)
-                    self.batch_definition = self.data_asset.add_batch_definition_whole_dataframe(simple_batch)
-                except Exception as e3:
-                    raise Exception(f"Failed to setup data source due to YAML/config error: {error_msg}. Simple fallback also failed: {str(e3)}")
-            else:
-                raise Exception(f"Failed to setup data source: {error_msg}")
+
+        _TRANSIENT_MSGS = ("i/o operation on closed file", "closed file")
+        _YAML_MSGS = ("nodeevent", "documentstartevent")
+        MAX_RETRIES = 3
+
+        last_exc: Exception | None = None
+
+        for attempt in range(1, MAX_RETRIES + 1):
+            uid = uuid.uuid4().hex[:10]
+            try:
+                self.data_source = self.context.data_sources.add_pandas(f"src_{uid}")
+                self.data_asset = self.data_source.add_dataframe_asset(name=f"asset_{uid}")
+                self.batch_definition = self.data_asset.add_batch_definition_whole_dataframe(f"batch_{uid}")
+                return  # success
+
+            except Exception as exc:
+                msg_lower = str(exc).lower()
+                last_exc = exc
+
+                if any(tok in msg_lower for tok in _TRANSIENT_MSGS):
+                    # GE ephemeral BytesIO buffer was closed under concurrent load.
+                    # Recreate the context and retry — this resolves itself on a fresh context.
+                    logger.warning(
+                        "[GE] Transient 'closed file' error on attempt %d/%d — recreating context",
+                        attempt, MAX_RETRIES,
+                    )
+                    try:
+                        self.context = gx.get_context(mode="ephemeral")
+                    except Exception as ctx_err:
+                        logger.warning("[GE] Failed to recreate context: %s", ctx_err)
+                    continue  # retry with fresh context + new UUID
+
+                if any(tok in msg_lower for tok in _YAML_MSGS):
+                    # YAML serialisation glitch inside GE — same remedy: fresh context
+                    logger.warning("[GE] YAML parse error on attempt %d/%d — recreating context", attempt, MAX_RETRIES)
+                    try:
+                        self.context = gx.get_context(mode="ephemeral")
+                    except Exception:
+                        pass
+                    continue
+
+                # Any other error is not transient — surface immediately
+                raise Exception(f"Failed to setup data source: {exc}") from exc
+
+        raise Exception(
+            f"Failed to setup data source after {MAX_RETRIES} retries "
+            f"(transient GE BytesIO error): {last_exc}"
+        )
     
     def _expand_rules_with_multiple_columns(self, rules):
         """

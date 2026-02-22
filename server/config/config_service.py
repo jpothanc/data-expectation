@@ -151,7 +151,8 @@ class ConfigService:
             return 'stock'
         if normalized == 'options':
             return 'option'
-        # 'option' stays as 'option' (matches config.json)
+        if normalized == 'multilegs':
+            return 'multileg'
         return normalized
     
     def get_database_config(self):

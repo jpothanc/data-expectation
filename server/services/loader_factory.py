@@ -90,5 +90,7 @@ class LoaderFactory:
             return 'stock'
         if normalized == 'option':
             return 'options'
+        if normalized == 'multilegs':
+            return 'multileg'
         return normalized
 

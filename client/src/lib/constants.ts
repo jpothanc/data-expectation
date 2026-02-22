@@ -8,11 +8,13 @@ export interface AppConfig {
 			validateStock: string;
 			validateFuture: string;
 			validateOption: string;
+			validateMultileg: string;
 			validateCustom: string;
 			validateByMasterId: string;
 			rules: string;
 			rulesFuture: string;
 			rulesOption: string;
+			rulesMultileg: string;
 			rulesYaml: string;
 			combinedRuleNames: string;
 			combinedRuleDetails: string;

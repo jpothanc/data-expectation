@@ -3,17 +3,19 @@
 from .stock_processor import StockProcessor
 from .future_processor import FutureProcessor
 from .option_processor import OptionProcessor
+from .multileg_processor import MultilegProcessor
 from .base_processor import BaseProcessor
 
 
 class ProcessorFactory:
     """Factory for creating instrument processors."""
-    
+
     # Registry of available processor types
     PROCESSOR_TYPES = {
         'stock': StockProcessor,
         'future': FutureProcessor,
         'option': OptionProcessor,
+        'multileg': MultilegProcessor,
     }
     
     @classmethod

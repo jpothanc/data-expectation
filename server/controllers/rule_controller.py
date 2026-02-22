@@ -63,9 +63,27 @@ def _handle_validation_error(e, exchange, product_type):
     """Handle validation errors with consistent error responses."""
     error_type = type(e).__name__
     error_msg = str(e)
-    
+
+    if isinstance(e, (IOError, OSError)):
+        # Infrastructure / GE internal errors — not a 404, the resource exists
+        logger.error("I/O error for %s/%s: %s", product_type, exchange, error_msg)
+        return jsonify({
+            "error": error_msg,
+            "error_type": error_type,
+            "exchange": exchange,
+            "product_type": product_type,
+        }), 500
+
     if isinstance(e, ValueError):
         logger.error(f"ValueError for {exchange}: {error_msg}")
+        # Processor/GE setup failures are 500s, not 404s
+        if any(tok in error_msg.lower() for tok in ("closed file", "failed to create processor", "failed to setup")):
+            return jsonify({
+                "error": error_msg,
+                "error_type": error_type,
+                "exchange": exchange,
+                "product_type": product_type,
+            }), 500
         if "Exchange" in error_msg and "not found" in error_msg:
             validation_service = get_validation_service(product_type=product_type)
             return jsonify({
@@ -80,7 +98,7 @@ def _handle_validation_error(e, exchange, product_type):
             "exchange": exchange,
             "product_type": product_type
         }), 404
-    
+
     elif isinstance(e, FileNotFoundError):
         logger.error(f"FileNotFoundError for {exchange}: {error_msg}")
         validation_service = get_validation_service(product_type=product_type)
@@ -122,7 +140,7 @@ def validate_exchange(product_type, exchange):
         in: path
         type: string
         required: true
-        enum: [stock, future, option]
+        enum: [stock, future, option, multileg]
       - name: exchange
         in: path
         type: string
@@ -170,7 +188,7 @@ def validate_exchange_custom(product_type, exchange):
         in: path
         type: string
         required: true
-        enum: [stock, future, option]
+        enum: [stock, future, option, multileg]
       - name: exchange
         in: path
         type: string
@@ -217,7 +235,7 @@ def get_rules_for_exchange(product_type, exchange):
         in: path
         type: string
         required: true
-        enum: [stock, future, option]
+        enum: [stock, future, option, multileg]
       - name: exchange
         in: path
         type: string
@@ -263,7 +281,7 @@ def get_rules_for_exchange_yaml(product_type, exchange):
         in: path
         type: string
         required: true
-        enum: [stock, future, option]
+        enum: [stock, future, option, multileg]
       - name: exchange
         in: path
         type: string
@@ -309,7 +327,7 @@ def get_combined_rule_names(product_type, exchange):
         in: path
         type: string
         required: true
-        enum: [stock, stocks, future, option, options]
+        enum: [stock, stocks, future, option, options, multileg, multilegs]
       - name: exchange
         in: path
         type: string
@@ -344,7 +362,7 @@ def get_combined_rule_details(product_type, exchange):
         in: path
         type: string
         required: true
-        enum: [stock, stocks, future, option, options]
+        enum: [stock, stocks, future, option, options, multileg, multilegs]
       - name: exchange
         in: path
         type: string
@@ -383,7 +401,7 @@ def get_combined_rule_details_yaml(product_type, exchange):
         in: path
         type: string
         required: true
-        enum: [stock, stocks, future, option, options]
+        enum: [stock, stocks, future, option, options, multileg, multilegs]
       - name: exchange
         in: path
         type: string
@@ -468,7 +486,7 @@ def validate_by_masterid(master_id, combined_rule_name):
         type: string
         required: false
         default: stock
-        enum: [stock, future, option]
+        enum: [stock, future, option, multileg]
     responses:
       200:
         description: Validation results for the record

@@ -1,13 +1,13 @@
 <script lang="ts">
-	import { validateStocks, validateFutures, validateOptions, validateCustom, validateByMasterId, getCombinedRuleNames, validateCombinedRule } from '../services/api';
+	import { validateStocks, validateFutures, validateOptions, validateMultileg, validateCustom, validateByMasterId, getCombinedRuleNames, validateCombinedRule } from '../services/api';
 	import { DEFAULT_EXCHANGE } from '../constants';
-	import { exchangesStore, fetchExchanges, getDefaultExchange } from '../stores/exchanges.svelte';
+	import { exchangesStore, setupExchangeInit } from '../stores/exchanges.svelte';
 	import type { ValidationResponse, ValidationResult } from '../types';
 	import {
 		filterValidationResults,
 		transformValidationResultsToTableData,
 		formatHeaderName
-	} from '../utils';
+	} from '../utils/index';
 	import { parseResultObject } from '../utils/validation';
 	import DataTable from './DataTable.svelte';
 	import SummaryCard from './SummaryCard.svelte';
@@ -17,7 +17,7 @@
 
 	interface Props {
 		initialExchange?: string | null;
-		productType?: 'stock' | 'future' | 'option';
+		productType?: 'stock' | 'future' | 'option' | 'multileg';
 	}
 
 	let { initialExchange = null, productType = 'stock' }: Props = $props();
@@ -87,20 +87,22 @@
 			// If master ID is provided, use master ID validation API
 			if (masterId && masterId.trim() !== '') {
 				const ruleName = selectedRule === EXCHANGE_RULE 
-					? (productType === 'future' ? 'is_tradable_futures' : productType === 'option' ? 'is_tradable_options' : 'is_tradable_stocks')
+					? (productType === 'future' ? 'is_tradable_futures' : productType === 'option' ? 'is_tradable_options' : productType === 'multileg' ? 'is_tradable_multileg' : 'is_tradable_stocks')
 					: selectedRule;
 				response = await validateByMasterId(masterId.trim(), ruleName);
 			} else {
 				// Otherwise, use exchange-based validation
 				if (selectedRule === EXCHANGE_RULE) {
 					// Use the standard exchange validation API based on product type
-					if (productType === 'future') {
-						response = await validateFutures(selectedExchange);
-					} else if (productType === 'option') {
-						response = await validateOptions(selectedExchange);
-					} else {
-						response = await validateStocks(selectedExchange);
-					}
+				if (productType === 'future') {
+					response = await validateFutures(selectedExchange);
+				} else if (productType === 'option') {
+					response = await validateOptions(selectedExchange);
+				} else if (productType === 'multileg') {
+					response = await validateMultileg(selectedExchange);
+				} else {
+					response = await validateStocks(selectedExchange);
+				}
 				} else {
 					// Use combined rule validation API
 					if (!selectedRule) {
@@ -145,22 +147,7 @@
 		}
 	});
 
-	// Fetch exchanges on mount (only once)
-	let exchangesFetched = $state(false);
-	$effect(() => {
-		// Only fetch if not already initialized and not currently loading
-		if (!exchangesStore.isInitialized(productType) && !exchangesStore.isLoading(productType) && !exchangesFetched) {
-			exchangesFetched = true;
-			fetchExchanges(productType);
-		}
-	});
-	
-	// Set default exchange when exchanges are loaded (separate effect to avoid loop)
-	$effect(() => {
-		if (exchangesStore.isInitialized(productType) && exchanges.length > 0 && !exchanges.find(e => e.value === selectedExchange)) {
-			selectedExchange = getDefaultExchange(productType);
-		}
-	});
+	setupExchangeInit(productType, () => selectedExchange, (v) => { selectedExchange = v; });
 
 	// Fetch all rules when exchange changes
 	$effect(() => {
@@ -278,7 +265,7 @@
 			disabled={loading}
 			class="btn"
 		>
-			{loading ? 'Loading...' : 'Validate Stocks'}
+			{loading ? 'Loading...' : `Validate ${productType === 'future' ? 'Futures' : productType === 'option' ? 'Options' : productType === 'multileg' ? 'MultiLeg' : 'Stocks'}`}
 		</button>
 	</div>
 
@@ -534,24 +521,6 @@
 		letter-spacing: 0.04em;
 	}
 
-	.total-count-badge {
-		font-size: 0.875rem;
-		font-weight: 500;
-		color: var(--color-primary-light);
-	}
-
-	.count-badge {
-		font-size: 0.875rem;
-		font-weight: 400;
-		color: #9ca3af;
-	}
-
-	.filter-badge {
-		font-size: 0.875rem;
-		font-weight: 500;
-		color: #f87171;
-	}
-
 	.table-actions {
 		display: flex;
 		gap: 0.5rem;
@@ -577,14 +546,14 @@
 	}
 
 	.filter-btn.active {
-		background-color: rgba(249, 115, 22, 0.15);
-		border-color: #f97316;
-		color: #fb923c;
+		background-color: rgba(239, 68, 68, 0.12);
+		border-color: #ef4444;
+		color: #f87171;
 	}
 
 	.filter-btn.active:hover {
-		background-color: rgba(249, 115, 22, 0.22);
-		border-color: #fb923c;
+		background-color: rgba(239, 68, 68, 0.2);
+		border-color: #ef4444;
 	}
 
 	.filter-btn:disabled {
@@ -629,7 +598,7 @@
 	.data-table {
 		width: 100%;
 		border-collapse: collapse;
-		font-size: 0.8125rem;
+		font-size: 0.75rem;
 	}
 
 	.data-table thead {
@@ -644,20 +613,20 @@
 	}
 
 	.data-table th {
-		padding: 0.3rem 0.625rem;
+		padding: 0.375rem 0.75rem;
 		text-align: left;
-		font-size: 0.6875rem;
+		font-size: 0.625rem;
 		font-weight: 600;
-		color: #6b7280;
+		color: #9ca3af;
 		text-transform: uppercase;
-		letter-spacing: 0.05em;
-		border-bottom: 1px solid #1f2937;
-		background-color: #111827;
+		letter-spacing: 0.04em;
+		border-bottom: 1px solid #374151;
+		background-color: #1f2937;
 		white-space: nowrap;
 	}
 
 	.data-table td {
-		padding: 0.375rem 0.625rem;
+		padding: 0.4rem 0.75rem;
 		border-bottom: 1px solid #1f2937;
 		color: #d1d5db;
 		white-space: nowrap;
@@ -678,12 +647,12 @@
 	}
 
 	.data-table tbody tr.failed-row {
-		background-color: rgba(251, 146, 60, 0.07);
+		background-color: rgba(239, 68, 68, 0.06);
 	}
 
 	.data-table tbody tr.failed-row td:first-child {
-		border-left: 3px solid #f97316;
-		padding-left: calc(0.625rem - 3px);
+		border-left: 3px solid #ef4444;
+		padding-left: calc(0.75rem - 3px);
 	}
 
 	.data-table tbody tr.success-row:hover {
@@ -691,7 +660,7 @@
 	}
 
 	.data-table tbody tr.failed-row:hover {
-		background-color: rgba(251, 146, 60, 0.13);
+		background-color: rgba(239, 68, 68, 0.1);
 	}
 
 	.data-table tbody tr:last-child td {
@@ -716,8 +685,8 @@
 	}
 
 	.status-indicator.failed {
-		background-color: rgba(249, 115, 22, 0.15);
-		color: #fb923c;
+		background-color: #450a0a;
+		color: #f87171;
 	}
 
 	.column-name {
@@ -813,24 +782,13 @@
 		height: 0.875rem;
 	}
 
-	.result-details {
-		font-size: 0.8125rem;
-		color: #9ca3af;
-		white-space: normal;
-		word-wrap: break-word;
-		word-break: break-word;
-		max-width: none;
-		line-height: 1.5;
-	}
-
 	/* ── Failed row instrument lookup ─────────────────────────── */
 	.failed-clickable {
 		cursor: pointer;
 	}
 
 	.data-table tbody tr.failed-clickable:hover {
-		background-color: #7f1d1d;
-		filter: brightness(1.25);
+		background-color: rgba(239, 68, 68, 0.1);
 	}
 
 	.lookup-cell {

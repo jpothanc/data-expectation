@@ -1,21 +1,19 @@
 <script lang="ts">
 	import StackedBarChart from '../StackedBarChart.svelte';
 	import ProductHeatmapChart from '../ProductHeatmapChart.svelte';
-	import GroupedBarChart from '../GroupedBarChart.svelte';
 	import DataTable from '../DataTable.svelte';
 	import ChartCard from '../ChartCard.svelte';
 	import ExpectationFailureModal from '../ExpectationFailureModal.svelte';
-	import type { GlobalViewData, HeatmapData, RuleFailureByRegionData, ExpectationFailureByRegionData } from '$lib/services/api';
+	import type { GlobalViewData, HeatmapData, ExpectationFailureByRegionData } from '$lib/services/api';
 
 	interface Props {
 		globalViewData: GlobalViewData[];
 		heatmapData: HeatmapData[];
-		ruleFailuresByRegionData?: RuleFailureByRegionData[];
 		expectationFailuresByRegionData?: ExpectationFailureByRegionData[];
 		days?: number;
 	}
 
-	let { globalViewData, heatmapData, ruleFailuresByRegionData = [], expectationFailuresByRegionData = [], days = 7 }: Props = $props();
+	let { globalViewData, heatmapData, expectationFailuresByRegionData = [], days = 7 }: Props = $props();
 
 	let selectedRegionFilter = $state<string | null>(null);
 	let selectedProductTypeFilter = $state<string | null>(null);
@@ -35,7 +33,7 @@
 			filteredData = filteredData.filter(d => d.Region === selectedRegionFilter);
 		}
 		if (selectedProductTypeFilter) {
-			filteredData = filteredData.filter(d => d.ProductType?.toLowerCase() === selectedProductTypeFilter.toLowerCase());
+			filteredData = filteredData.filter(d => d.ProductType?.toLowerCase() === selectedProductTypeFilter!.toLowerCase());
 		}
 		
 		// Sort by Region, ProductType, then by FailureCount descending
@@ -115,19 +113,6 @@
 		{:else}
 			<div class="no-data-message">
 				<p>No data available</p>
-			</div>
-		{/if}
-	</ChartCard>
-
-	<ChartCard title="Rule Failures by Region" stats={[
-		{ label: 'Regions', value: [...new Set(ruleFailuresByRegionData.map(d => d.Region))].length },
-		{ label: 'Rules', value: [...new Set(ruleFailuresByRegionData.map(d => d.RuleName))].length }
-	]}>
-		{#if ruleFailuresByRegionData.length > 0}
-			<GroupedBarChart data={ruleFailuresByRegionData} height="400px" />
-		{:else}
-			<div class="no-data-message">
-				<p>No rule failures by region found</p>
 			</div>
 		{/if}
 	</ChartCard>
@@ -252,14 +237,15 @@
 		background-color: #1f2937;
 		border: 1px solid #374151;
 		color: #9ca3af;
-		padding: 0.4375rem 0.875rem;
+		padding: 0.2rem 0.5rem;
 		border-radius: 0.375rem;
-		font-size: 0.8125rem;
+		font-size: 0.75rem;
 		font-weight: 500;
 		cursor: pointer;
 		transition: all 0.2s;
 		white-space: nowrap;
-		line-height: 1.4;
+		height: 1.75rem;
+		box-sizing: border-box;
 	}
 
 	.filter-button:hover:not(.active) {

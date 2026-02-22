@@ -117,11 +117,17 @@ class ValidationService:
             )
         except IOError as e:
             logger.error("IOError creating processor for %s: %s", product_type, e)
-            raise ValueError(
+            raise IOError(
                 f"File access error creating processor for {product_type}: {e}. "
                 "This may be due to a closed file handle or file locking issue."
             )
         except Exception as e:
+            # Re-raise OSError / closed-file errors as IOError so callers can distinguish
+            # them from logical ValueError (exchange not found, etc.)
+            msg = str(e)
+            if "i/o operation on closed file" in msg.lower() or "closed file" in msg.lower():
+                logger.error("GE closed-file error creating processor for %s: %s", product_type, e)
+                raise IOError(f"Failed to create processor for {product_type}: {e}")
             logger.error("Error creating processor for %s: %s", product_type, e)
             raise ValueError(f"Failed to create processor for {product_type}: {e}")
 
@@ -522,5 +528,7 @@ class ValidationService:
             return 'stock'
         if normalized == 'option':
             return 'options'
+        if normalized == 'multilegs':
+            return 'multileg'
         return normalized
 

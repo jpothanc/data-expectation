@@ -88,6 +88,36 @@ export function resetExchanges(productType?: string): void {
 }
 
 /**
+ * Composable that sets up exchange initialization effects for a component.
+ * Call this synchronously inside a component's <script> block.
+ *
+ * @param productType - The product type to fetch exchanges for
+ * @param getSelected - Getter for the currently selected exchange value
+ * @param setDefault - Setter called when a default exchange should be applied
+ */
+export function setupExchangeInit(
+	productType: string,
+	getSelected: () => string,
+	setDefault: (value: string) => void
+): void {
+	let fetched = $state(false);
+
+	$effect(() => {
+		if (!initializedCache[productType] && !loadingCache[productType] && !fetched) {
+			fetched = true;
+			fetchExchanges(productType);
+		}
+	});
+
+	$effect(() => {
+		const exs = exchangesCache[productType] || [];
+		if (initializedCache[productType] && exs.length > 0 && !exs.find((e) => e.value === getSelected())) {
+			setDefault(getDefaultExchange(productType));
+		}
+	});
+}
+
+/**
  * Exported store object for reactive access
  */
 export const exchangesStore = {

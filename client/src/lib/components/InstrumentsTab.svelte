@@ -2,13 +2,13 @@
 	import { getInstrumentsByExchange, getInstrumentById, getInstrumentByRic } from '../services/api';
 	import { convertInstrumentsToTableData } from '../utils/table';
 	import { DEFAULT_EXCHANGE } from '../constants';
-	import { exchangesStore, fetchExchanges, getDefaultExchange } from '../stores/exchanges.svelte';
+	import { exchangesStore, setupExchangeInit } from '../stores/exchanges.svelte';
 	import DataTable from './DataTable.svelte';
 	import Select from './Select.svelte';
 	import InstrumentDetailsModal from './InstrumentDetailsModal.svelte';
 
 	interface Props {
-		productType?: 'stock' | 'future' | 'option';
+		productType?: 'stock' | 'future' | 'option' | 'multileg';
 	}
 
 	let { productType = 'stock' }: Props = $props();
@@ -108,92 +108,68 @@
 		selectedInstrument = null;
 	}
 
-	// Fetch exchanges on mount (only once)
-	let exchangesFetched = $state(false);
-	$effect(() => {
-		// Only fetch if not already initialized and not currently loading
-		if (!exchangesStore.isInitialized(productType) && !exchangesStore.isLoading(productType) && !exchangesFetched) {
-			exchangesFetched = true;
-			fetchExchanges(productType);
-		}
-	});
-	
-	// Set default exchange when exchanges are loaded (separate effect to avoid loop)
-	$effect(() => {
-		if (exchangesStore.isInitialized(productType) && exchanges.length > 0 && !exchanges.find(e => e.value === instrumentExchange)) {
-			instrumentExchange = getDefaultExchange(productType);
-		}
-	});
+	setupExchangeInit(productType, () => instrumentExchange, (v) => { instrumentExchange = v; });
 </script>
 
 <div class="instruments-tab">
 	<div class="search-container">
 		<div class="search-row">
-			<div class="search-item">
-				<label for="instrument-exchange" class="search-label">Exchange</label>
-				<div class="search-input-group">
-					<Select 
-						id="instrument-exchange"
-						bind:value={instrumentExchange}
-						options={exchanges.map(ex => ({ value: ex.value, label: ex.label || ex.value }))}
-						disabled={loading || loadingExchanges}
-						placeholder={loadingExchanges ? 'Loading exchanges...' : 'Select exchange'}
-					/>
-					<button 
-						onclick={fetchInstrumentsByExchange} 
-						disabled={loading}
-						class="btn btn-sm"
-						title="Search by Exchange"
-					>
-						{loading ? '...' : 'Search'}
-					</button>
-				</div>
+			<div class="search-input-group">
+				<Select 
+					id="instrument-exchange"
+					bind:value={instrumentExchange}
+					options={exchanges.map(ex => ({ value: ex.value, label: ex.label || ex.value }))}
+					disabled={loading || loadingExchanges}
+					placeholder={loadingExchanges ? 'Loading…' : 'Exchange'}
+				/>
+				<button 
+					onclick={fetchInstrumentsByExchange} 
+					disabled={loading}
+					class="btn btn-sm"
+					title="Search by Exchange"
+				>
+					{loading ? '…' : 'Search'}
+				</button>
 			</div>
 
-			<div class="search-item">
-				<label for="instrument-id" class="search-label">Instrument ID</label>
-				<div class="search-input-group">
-					<input 
-						id="instrument-id"
-						type="text"
-						bind:value={instrumentId}
-						placeholder="e.g., HK0001"
-						disabled={loading}
-						class="input-field"
-						onkeydown={(e) => e.key === 'Enter' && fetchInstrumentById()}
-					/>
-					<button 
-						onclick={fetchInstrumentById} 
-						disabled={loading}
-						class="btn btn-sm"
-						title="Search by Instrument ID"
-					>
-						{loading ? '...' : 'Search'}
-					</button>
-				</div>
+			<div class="search-input-group">
+				<input 
+					id="instrument-id"
+					type="text"
+					bind:value={instrumentId}
+					placeholder="Instrument ID"
+					disabled={loading}
+					class="input-field"
+					onkeydown={(e) => e.key === 'Enter' && fetchInstrumentById()}
+				/>
+				<button 
+					onclick={fetchInstrumentById} 
+					disabled={loading}
+					class="btn btn-sm"
+					title="Search by Instrument ID"
+				>
+					{loading ? '…' : 'Search'}
+				</button>
 			</div>
 
-			<div class="search-item">
-				<label for="instrument-ric" class="search-label">RIC</label>
-				<div class="search-input-group">
-					<input 
-						id="instrument-ric"
-						type="text"
-						bind:value={instrumentRic}
-						placeholder="e.g., 0005.HK"
-						disabled={loading}
-						class="input-field"
-						onkeydown={(e) => e.key === 'Enter' && fetchInstrumentByRic()}
-					/>
-					<button 
-						onclick={fetchInstrumentByRic} 
-						disabled={loading}
-						class="btn btn-sm"
-						title="Search by RIC"
-					>
-						{loading ? '...' : 'Search'}
-					</button>
-				</div>
+			<div class="search-input-group">
+				<input 
+					id="instrument-ric"
+					type="text"
+					bind:value={instrumentRic}
+					placeholder="RIC"
+					disabled={loading}
+					class="input-field"
+					onkeydown={(e) => e.key === 'Enter' && fetchInstrumentByRic()}
+				/>
+				<button 
+					onclick={fetchInstrumentByRic} 
+					disabled={loading}
+					class="btn btn-sm"
+					title="Search by RIC"
+				>
+					{loading ? '…' : 'Search'}
+				</button>
 			</div>
 		</div>
 	</div>
@@ -230,40 +206,26 @@
 
 <style>
 	.search-container {
-		margin-bottom: 1rem;
-		padding: 0.625rem 0.875rem;
+		margin-bottom: 0.75rem;
+		padding: 0.5rem 0.75rem;
 		background-color: #111827;
 		border: 1px solid #374151;
 		border-radius: 0.5rem;
 	}
 
 	.search-row {
-		display: grid;
-		grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-		gap: 0.625rem;
-		align-items: start;
-	}
-
-	.search-item {
 		display: flex;
-		flex-direction: column;
-		gap: 0.25rem;
-	}
-
-	.search-label {
-		font-size: 0.75rem;
-		font-weight: 600;
-		color: #9ca3af;
-		text-transform: uppercase;
-		letter-spacing: 0.05em;
-		line-height: 1.2;
-		margin-bottom: 0;
+		flex-wrap: wrap;
+		gap: 0.5rem;
+		align-items: center;
 	}
 
 	.search-input-group {
 		display: flex;
-		gap: 0.5rem;
+		gap: 0.375rem;
 		align-items: center;
+		flex: 1;
+		min-width: 200px;
 	}
 
 
@@ -354,9 +316,9 @@
 		text-align: center;
 	}
 
-	@media (max-width: 768px) {
-		.search-row {
-			grid-template-columns: 1fr;
+	@media (max-width: 640px) {
+		.search-input-group {
+			min-width: 100%;
 		}
 	}
 </style>

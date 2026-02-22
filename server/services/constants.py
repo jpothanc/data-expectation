@@ -26,6 +26,14 @@ DEFAULT_EXCHANGE_MAP = {
         "XPAR": "futures/db_par.csv",
         "XNYS": "futures/db_nys.csv",
         "XNAS": "futures/db_nas.csv"
+    },
+    "multileg": {
+        "XHKG": "multileg/db_hkg.csv",
+        "XTKS": "multileg/db_tks.csv",
+        "XLON": "multileg/db_lon.csv",
+        "XPAR": "multileg/db_par.csv",
+        "XNYS": "multileg/db_nys.csv",
+        "XNAS": "multileg/db_nas.csv"
     }
 }
 

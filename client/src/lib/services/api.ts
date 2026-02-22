@@ -60,6 +60,13 @@ export async function validateOptions(exchange: string): Promise<ValidationRespo
 	return await response.json();
 }
 
+export async function validateMultileg(exchange: string): Promise<ValidationResponse> {
+	const url = `${API_BASE_URL}${API_ENDPOINTS.validateMultileg}/${exchange}`;
+	const response = await fetch(url);
+	if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+	return await response.json();
+}
+
 export async function validateCustom(
 	instrumentType: string,
 	exchange: string,

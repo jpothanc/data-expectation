@@ -591,8 +591,10 @@ class RuleLoader:
             return 'stock'
         if normalized == 'option':
             return 'options'
+        if normalized == 'multilegs':
+            return 'multileg'
         return normalized
-    
+
     def load_product_type_rules(self, product_type):
         """
         Load product type-specific base rules (e.g., stock, future, options).

@@ -6,8 +6,10 @@
 	} from '$lib/services/api';
 	import type { ExchangeValidationResult, PassedExchangeRun, RunSession } from '$lib/services/api';
 	import HomeButton from '$lib/components/HomeButton.svelte';
-	import ReportFilters from '$lib/components/reports/ReportFilters.svelte';
 	import RunSessionPicker from '$lib/components/reports/RunSessionPicker.svelte';
+
+	const REGIONS = ['APAC', 'EMEA', 'US'];
+	const TODAY = new Date().toISOString().slice(0, 10);
 	import ReportSummary from '$lib/components/reports/ReportSummary.svelte';
 	import PassedExchangesPanel from '$lib/components/reports/PassedExchangesPanel.svelte';
 	import RunsTable from '$lib/components/reports/RunsTable.svelte';
@@ -100,18 +102,39 @@
 		<HomeButton size="medium" />
 		<span class="header-divider"></span>
 		<h1 class="page-title">Validation Reports</h1>
+		<div class="header-spacer"></div>
+		<div class="header-controls">
+			<select bind:value={region} title="Region" aria-label="Region">
+				{#each REGIONS as r}
+					<option value={r}>{r}</option>
+				{/each}
+			</select>
+			<input
+				type="date"
+				bind:value={date}
+				max={TODAY}
+				title="Date"
+				aria-label="Date"
+			/>
+			<button class="load-btn" onclick={loadReport} disabled={anyLoading} type="button">
+				{#if anyLoading}
+					<span class="spinner"></span> Loading…
+				{:else}
+					Load Report
+				{/if}
+			</button>
+			{#if hasLoaded && runs.length > 0}
+				<button class="download-btn" onclick={downloadExcel} disabled={anyLoading} type="button" title="Export Excel">
+					<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" width="14" height="14">
+						<path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd" />
+					</svg>
+					Export
+				</button>
+			{/if}
+		</div>
 	</header>
 
 	<div class="page-body">
-	<ReportFilters
-		bind:region
-		bind:date
-		loading={anyLoading}
-		hasData={hasLoaded && runs.length > 0}
-		onLoad={loadReport}
-		onDownload={downloadExcel}
-	/>
-
 	{#if error}
 		<div class="error-banner">{error}</div>
 	{/if}
@@ -191,10 +214,113 @@
 		font-size: 0.875rem;
 		font-weight: 500;
 		color: #6b7280;
+		white-space: nowrap;
+	}
+
+	.header-spacer {
+		flex: 1;
+	}
+
+	.header-controls {
+		display: flex;
+		align-items: center;
+		gap: 0.375rem;
+		flex-shrink: 0;
+	}
+
+	.header-controls select,
+	.header-controls input[type='date'] {
+		background: #1f2937;
+		border: 1px solid #374151;
+		border-radius: 0.375rem;
+		color: #e5e7eb;
+		padding: 0 0.625rem;
+		font-size: 0.75rem;
+		height: 1.875rem;
+		outline: none;
+		transition: border-color 0.15s;
+		color-scheme: dark;
+		box-sizing: border-box;
+	}
+
+	.header-controls select {
+		min-width: 80px;
+	}
+
+	.header-controls input[type='date'] {
+		min-width: 120px;
+	}
+
+	.header-controls select:focus,
+	.header-controls input[type='date']:focus {
+		border-color: var(--color-primary);
+	}
+
+	.load-btn {
+		display: flex;
+		align-items: center;
+		gap: 0.375rem;
+		background: var(--gradient-primary);
+		border: none;
+		border-radius: 0.375rem;
+		color: #fff;
+		font-size: 0.75rem;
+		font-weight: 600;
+		padding: 0 0.875rem;
+		height: 1.875rem;
+		cursor: pointer;
+		transition: opacity 0.2s;
+		white-space: nowrap;
+	}
+
+	.load-btn:disabled {
+		opacity: 0.6;
+		cursor: not-allowed;
+	}
+
+	.download-btn {
+		display: flex;
+		align-items: center;
+		gap: 0.35rem;
+		background: #14532d;
+		border: 1px solid #166534;
+		border-radius: 0.375rem;
+		color: #86efac;
+		font-size: 0.75rem;
+		font-weight: 600;
+		padding: 0 0.75rem;
+		height: 1.875rem;
+		cursor: pointer;
+		transition: background 0.2s, border-color 0.2s;
+		white-space: nowrap;
+	}
+
+	.download-btn:hover:not(:disabled) {
+		background: #166534;
+		border-color: #15803d;
+	}
+
+	.download-btn:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
+	}
+
+	.spinner {
+		width: 0.75rem;
+		height: 0.75rem;
+		border: 2px solid rgba(255, 255, 255, 0.3);
+		border-top-color: #fff;
+		border-radius: 50%;
+		animation: spin 0.6s linear infinite;
+		display: inline-block;
+	}
+
+	@keyframes spin {
+		to { transform: rotate(360deg); }
 	}
 
 	.page-body {
-		padding: 1.25rem 2rem 3rem;
+		padding: 1rem 2rem 3rem;
 	}
 
 	/* ── Error banner ─────────────────────────────────────────── */
@@ -222,13 +348,28 @@
 		color: var(--color-primary-light);
 	}
 
-	@media (max-width: 640px) {
-		.page-body {
-			padding: 1rem;
-		}
-
+	@media (max-width: 768px) {
 		.page-header {
 			padding: 0 1rem;
+			height: auto;
+			min-height: 42px;
+			flex-wrap: wrap;
+			padding-top: 0.375rem;
+			padding-bottom: 0.375rem;
+			gap: 0.5rem;
+		}
+
+		.header-spacer {
+			display: none;
+		}
+
+		.header-controls {
+			width: 100%;
+			flex-wrap: wrap;
+		}
+
+		.page-body {
+			padding: 1rem;
 		}
 	}
 </style>

@@ -2,8 +2,10 @@
 	import { getRegionalTrends, type RegionalTrendResponse } from '$lib/services/api';
 	import { withTimeout } from '$lib/utils/promise';
 	import { API_TIMEOUTS } from '$lib/constants/timeouts';
-	import { DEFAULT_PERIOD } from '$lib/constants/periods';
 	import PageControls from '$lib/components/PageControls.svelte';
+	import LoadingState from '$lib/components/LoadingState.svelte';
+	import ErrorBanner from '$lib/components/ErrorBanner.svelte';
+	import EmptyState from '$lib/components/EmptyState.svelte';
 	import LineChart from '$lib/components/LineChart.svelte';
 	import HeatmapChart from '$lib/components/HeatmapChart.svelte';
 	import SparklinesChart from '$lib/components/SparklinesChart.svelte';
@@ -16,7 +18,7 @@
 	let isFetching = $state(false);
 	let regionalTrendsData = $state<RegionalTrendResponse | null>(null);
 	let activeTab = $state<'line' | 'heatmap' | 'sparklines' | 'stacked'>('line');
-	let selectedProductType = $state<'stock' | 'option' | 'future' | null>(null);
+	let selectedProductType = $state<'stock' | 'option' | 'future' | 'multileg' | null>(null);
 
 	async function fetchData() {
 		if (isFetching) return;
@@ -40,7 +42,7 @@
 		}
 	}
 
-	function handleProductTypeFilter(productType: 'stock' | 'option' | 'future' | null) {
+	function handleProductTypeFilter(productType: 'stock' | 'option' | 'future' | 'multileg' | null) {
 		selectedProductType = productType;
 		fetchData();
 	}
@@ -64,53 +66,31 @@
 </script>
 
 <div class="page-container">
-	<div class="page-header">
-		<h1 class="page-title">Trends</h1>
-	</div>
-	<PageControls days={days} onDaysChange={(d) => { days = d; fetchData(); }} onRefresh={fetchData} {loading} />
-	
-	<div class="product-type-filters">
-		<button 
-			class="product-filter-button {selectedProductType === null ? 'active' : ''}"
-			onclick={() => handleProductTypeFilter(null)}
-			type="button"
-		>
-			All
-		</button>
-		<button 
-			class="product-filter-button {selectedProductType === 'stock' ? 'active' : ''}"
-			onclick={() => handleProductTypeFilter('stock')}
-			type="button"
-		>
-			Stock
-		</button>
-		<button 
-			class="product-filter-button {selectedProductType === 'option' ? 'active' : ''}"
-			onclick={() => handleProductTypeFilter('option')}
-			type="button"
-		>
-			Option
-		</button>
-		<button 
-			class="product-filter-button {selectedProductType === 'future' ? 'active' : ''}"
-			onclick={() => handleProductTypeFilter('future')}
-			type="button"
-		>
-			Futures
-		</button>
+	<div class="top-bar">
+		<div class="product-type-filters">
+			{#each [
+				{ value: null        as 'stock' | 'option' | 'future' | 'multileg' | null, label: 'All' },
+				{ value: 'stock'     as const, label: 'Stock' },
+				{ value: 'option'    as const, label: 'Option' },
+				{ value: 'future'    as const, label: 'Futures' },
+				{ value: 'multileg'  as const, label: 'MultiLeg' }
+			] as f}
+				<button
+					class="product-filter-button {selectedProductType === f.value ? 'active' : ''}"
+					onclick={() => handleProductTypeFilter(f.value)}
+					type="button"
+				>{f.label}</button>
+			{/each}
+		</div>
+		<PageControls {days} onDaysChange={(d) => { days = d; fetchData(); }} onRefresh={fetchData} {loading} />
 	</div>
 
 	{#if error}
-		<div class="error">
-			<p>Error: {error}</p>
-		</div>
+		<ErrorBanner message={error} />
 	{/if}
 
 	{#if loading}
-		<div class="loading">
-			<div class="spinner"></div>
-			<p>Loading trend data...</p>
-		</div>
+		<LoadingState message="Loading trend data..." />
 	{:else}
 		<div class="tabs-container">
 			<div class="tabs">
@@ -180,9 +160,7 @@
 						</ChartCard>
 					{/if}
 				{:else}
-					<div class="no-data-message">
-						<p>No trend data available</p>
-					</div>
+				<EmptyState message="No trend data available" />
 				{/if}
 			</div>
 		</div>
@@ -190,43 +168,39 @@
 </div>
 
 <style>
-	.page-header {
+	.top-bar {
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		margin-bottom: 1rem;
-		gap: 1rem;
+		gap: 0.75rem;
+		margin-bottom: 0.75rem;
+		flex-wrap: wrap;
 	}
 
-	.page-title {
-		margin: 0;
-		font-size: 1.5rem;
-		font-weight: 600;
-		color: #ffffff;
-		letter-spacing: -0.02em;
+	/* PageControls sits at the end — remove its own bottom margin in this context */
+	.top-bar :global(.page-controls) {
+		margin-bottom: 0;
 	}
 
 	.product-type-filters {
 		display: flex;
-		gap: 0.5rem;
-		margin-bottom: 1.5rem;
-		padding: 0.5rem;
-		background-color: #111827;
-		border-radius: 0.5rem;
-		border: 1px solid rgba(52, 211, 153, 0.08);
+		gap: 0.25rem;
+		align-items: center;
 	}
 
 	.product-filter-button {
 		background-color: #1f2937;
 		border: 1px solid #374151;
 		color: #9ca3af;
-		padding: 0.5rem 1rem;
+		padding: 0.25rem 0.625rem;
 		border-radius: 0.375rem;
-		font-size: 0.875rem;
+		font-size: 0.75rem;
 		font-weight: 500;
 		cursor: pointer;
 		transition: all 0.2s;
 		white-space: nowrap;
+		height: 2rem;
+		box-sizing: border-box;
 	}
 
 	.product-filter-button:hover {
@@ -313,50 +287,11 @@
 		gap: 1.5rem;
 	}
 
-	.no-data-message {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		height: 150px;
-		color: #6b7280;
-		font-size: 0.875rem;
-		background: rgba(55, 65, 81, 0.3);
-		border-radius: 0.5rem;
-		border: 1px dashed #374151;
-	}
-
 	.page-container {
 		max-width: 1600px;
 		margin: 0 auto;
 		padding: 1.25rem 2rem;
 		min-height: calc(100vh - 60px);
-	}
-
-	.error {
-		margin-top: 1.5rem;
-		padding: 1rem;
-		background-color: #7f1d1d;
-		border: 1px solid #dc2626;
-		border-radius: 0.5rem;
-		color: #fca5a5;
-	}
-
-	.loading {
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		justify-content: center;
-		padding: 4rem 2rem;
-		gap: 1rem;
-	}
-
-	.spinner {
-		width: 3rem;
-		height: 3rem;
-		border: 3px solid #374151;
-		border-top-color: #34d399;
-		border-radius: 50%;
-		animation: spin 1s linear infinite;
 	}
 
 	@media (max-width: 768px) {

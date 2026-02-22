@@ -134,6 +134,7 @@ def get_instrument_by_ric(ric):
           - stock
           - option
           - future
+          - multileg
         description: Product type (stock, option, or future)
       - name: exchange
         in: query
@@ -152,7 +153,7 @@ def get_instrument_by_ric(ric):
     exchange = request.args.get('exchange')
     
     # Validate product_type
-    if product_type not in ['stock', 'option', 'future']:
+    if product_type not in ['stock', 'option', 'future', 'multileg']:
         return jsonify({"error": f"Invalid product_type '{product_type}'. Must be 'stock', 'option', or 'future'."}), 400
     
     try:
@@ -186,6 +187,7 @@ def get_instrument_by_id(instrument_id):
           - stock
           - option
           - future
+          - multileg
         description: Product type (stock, option, or future)
       - name: exchange
         in: query
@@ -202,7 +204,7 @@ def get_instrument_by_id(instrument_id):
     exchange = request.args.get('exchange')
     
     # Validate product_type
-    if product_type not in ['stock', 'option', 'future']:
+    if product_type not in ['stock', 'option', 'future', 'multileg']:
         return jsonify({"error": f"Invalid product_type '{product_type}'. Must be 'stock', 'option', or 'future'."}), 400
     
     try:
@@ -237,6 +239,7 @@ def get_all_exchanges():
           - stock
           - option
           - future
+          - multileg
         description: Product type to filter exchanges
     responses:
       200:
@@ -251,7 +254,7 @@ def get_all_exchanges():
     product_type = request.args.get('product_type', 'stock').lower()
     
     # Validate product_type
-    if product_type not in ['stock', 'option', 'future']:
+    if product_type not in ['stock', 'option', 'future', 'multileg']:
         return jsonify({"error": f"Invalid product_type '{product_type}'. Must be 'stock', 'option', or 'future'."}), 400
     
     # Try to get from cache
@@ -295,7 +298,7 @@ def get_exchanges_by_region():
         type: string
         required: false
         description: Filter by product type (stock, option, future)
-        enum: [stock, option, future]
+        enum: [stock, option, future, multileg]
     responses:
       200:
         description: Exchanges organized by region and product type
@@ -349,6 +352,7 @@ def filter_instruments_by_exchange(exchange):
           - stock
           - option
           - future
+          - multileg
         description: Product type
       - name: column
         in: query
@@ -382,7 +386,7 @@ def filter_instruments_by_exchange(exchange):
     values = request.args.getlist('values')
     include_missing = request.args.get('missing', 'false').lower() == 'true'
 
-    if product_type not in ['stock', 'option', 'future']:
+    if product_type not in ['stock', 'option', 'future', 'multileg']:
         return jsonify({"error": f"Invalid product_type '{product_type}'. Must be 'stock', 'option', or 'future'."}), 400
 
     if not column:
@@ -429,6 +433,7 @@ def get_instruments_by_exchange(exchange):
           - stock
           - option
           - future
+          - multileg
         description: Product type (stock, option, or future)
       - name: limit
         in: query
@@ -454,7 +459,7 @@ def get_instruments_by_exchange(exchange):
     offset = request.args.get('offset', default=0, type=int)
     
     # Validate product_type
-    if product_type not in ['stock', 'option', 'future']:
+    if product_type not in ['stock', 'option', 'future', 'multileg']:
         return jsonify({"error": f"Invalid product_type '{product_type}'. Must be 'stock', 'option', or 'future'."}), 400
     
     # Try to get from cache

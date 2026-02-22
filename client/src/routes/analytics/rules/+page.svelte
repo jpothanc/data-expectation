@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { goto } from '$app/navigation';
+	import { withTimeout } from '$lib/utils/promise';
 	import {
 		getRuleFailures,
 		getRuleFailuresByRegion,
@@ -11,6 +11,10 @@
 	import BarChart from '$lib/components/BarChart.svelte';
 	import GroupedBarChart from '$lib/components/GroupedBarChart.svelte';
 	import ChartCard from '$lib/components/ChartCard.svelte';
+	import PageControls from '$lib/components/PageControls.svelte';
+	import LoadingState from '$lib/components/LoadingState.svelte';
+	import ErrorBanner from '$lib/components/ErrorBanner.svelte';
+	import EmptyState from '$lib/components/EmptyState.svelte';
 
 	let loading = $state(true);
 	let error = $state<string | null>(null);
@@ -24,21 +28,12 @@
 
 	async function fetchData() {
 		if (isFetching) return;
-		
+
 		isFetching = true;
 		loading = true;
 		error = null;
 
 		try {
-			const withTimeout = <T>(promise: Promise<T>, timeoutMs: number): Promise<T> => {
-				return Promise.race([
-					promise,
-					new Promise<T>((_, reject) => 
-						setTimeout(() => reject(new Error(`Request timeout after ${timeoutMs}ms`)), timeoutMs)
-					)
-				]);
-			};
-			
 			const results = await Promise.allSettled([
 				withTimeout(getRuleFailures(days, 20), 15000),
 				withTimeout(getRuleFailuresByRegion(days, 20), 15000),
@@ -58,11 +53,7 @@
 			}
 
 			if (results[2].status === 'fulfilled' && results[2].value) {
-				if (results[2].value.TotalCount !== undefined) {
-					combinedRuleData = results[2].value;
-				} else {
-					combinedRuleData = null;
-				}
+				combinedRuleData = results[2].value.TotalCount !== undefined ? results[2].value : null;
 			} else {
 				combinedRuleData = null;
 			}
@@ -75,9 +66,8 @@
 		}
 	}
 
-
 	let initialFetchDone = $state(false);
-	
+
 	$effect(() => {
 		if (!initialFetchDone) {
 			initialFetchDone = true;
@@ -94,45 +84,23 @@
 </script>
 
 <div class="page-container">
-	<div class="page-controls">
-		<div class="control-group">
-			<label for="days">Period:</label>
-			<select id="days" bind:value={days} onchange={fetchData}>
-				<option value={7}>7 Days</option>
-				<option value={14}>14 Days</option>
-				<option value={30}>30 Days</option>
-			</select>
-		</div>
-		<div class="control-group">
-			<label for="rule">Rule:</label>
-			<select id="rule" bind:value={combinedRuleName} onchange={fetchData}>
-				<option value="is_tradable_stocks">is_tradable_stocks</option>
-			</select>
-		</div>
-		<button class="refresh-button" onclick={fetchData} disabled={loading} type="button" title="Refresh data">
-			{#if loading}
-				<svg class="refresh-icon spinning" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-				</svg>
-			{:else}
-				<svg class="refresh-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-				</svg>
-			{/if}
-		</button>
-	</div>
+	<PageControls {days} onDaysChange={(d) => { days = d; fetchData(); }} onRefresh={fetchData} {loading}>
+		{#snippet additionalControls()}
+			<div class="control-group">
+				<label for="rule">Rule:</label>
+				<select id="rule" bind:value={combinedRuleName} onchange={fetchData}>
+					<option value="is_tradable_stocks">is_tradable_stocks</option>
+				</select>
+			</div>
+		{/snippet}
+	</PageControls>
 
 	{#if error}
-		<div class="error">
-			<p>Error: {error}</p>
-		</div>
+		<ErrorBanner message={error} />
 	{/if}
 
 	{#if loading}
-		<div class="loading">
-			<div class="spinner"></div>
-			<p>Loading rule analysis data...</p>
-		</div>
+		<LoadingState message="Loading rule analysis data..." />
 	{:else}
 		<div class="charts-grid">
 			<ChartCard title="Rule Failure Statistics" stats={[
@@ -141,9 +109,7 @@
 				{#if ruleFailuresData.length > 0}
 					<BarChart data={ruleFailuresData} height="400px" />
 				{:else}
-					<div class="no-data-message">
-						<p>No rule failures found</p>
-					</div>
+					<EmptyState message="No rule failures found" />
 				{/if}
 			</ChartCard>
 
@@ -154,9 +120,7 @@
 				{#if ruleFailuresByRegionData.length > 0}
 					<GroupedBarChart data={ruleFailuresByRegionData} height="400px" />
 				{:else}
-					<div class="no-data-message">
-						<p>No rule failures by region found</p>
-					</div>
+					<EmptyState message="No rule failures by region found" />
 				{/if}
 			</ChartCard>
 
@@ -171,16 +135,12 @@
 							<div class="stat-row">
 								<span class="stat-label">Tradable:</span>
 								<span class="stat-value success">{combinedRuleData.TradableCount}</span>
-								<span class="stat-percent">
-									({((combinedRuleData.TradableCount / combinedRuleData.TotalCount) * 100).toFixed(1)}%)
-								</span>
+								<span class="stat-percent">({((combinedRuleData.TradableCount / combinedRuleData.TotalCount) * 100).toFixed(1)}%)</span>
 							</div>
 							<div class="stat-row">
 								<span class="stat-label">Not Tradable:</span>
 								<span class="stat-value failed">{combinedRuleData.NotTradableCount}</span>
-								<span class="stat-percent">
-									({((combinedRuleData.NotTradableCount / combinedRuleData.TotalCount) * 100).toFixed(1)}%)
-								</span>
+								<span class="stat-percent">({((combinedRuleData.NotTradableCount / combinedRuleData.TotalCount) * 100).toFixed(1)}%)</span>
 							</div>
 						</div>
 						{#if combinedRuleData.FailureReasons.length > 0}
@@ -199,9 +159,7 @@
 						{/if}
 					</div>
 				{:else}
-					<div class="no-data-message">
-						<p>No data available for {combinedRuleName}</p>
-					</div>
+					<EmptyState message="No data available for {combinedRuleName}" />
 				{/if}
 			</ChartCard>
 		</div>
@@ -214,15 +172,6 @@
 		margin: 0 auto;
 		padding: 1.25rem 2rem;
 		min-height: calc(100vh - 60px);
-	}
-
-	.page-controls {
-		display: flex;
-		align-items: center;
-		justify-content: flex-end;
-		gap: 0.75rem;
-		margin-bottom: 1rem;
-		flex-wrap: wrap;
 	}
 
 	.control-group {
@@ -249,73 +198,6 @@
 		transition: border-color 0.2s;
 	}
 
-	.refresh-button {
-		background-color: #1f2937;
-		border: 1px solid #374151;
-		color: #9ca3af;
-		padding: 0;
-		border-radius: 0.375rem;
-		cursor: pointer;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		transition: all 0.2s;
-		width: 2rem;
-		height: 2rem;
-	}
-
-	.refresh-button:hover:not(:disabled) {
-		background-color: #059669;
-		border-color: #059669;
-		color: white;
-	}
-
-	.refresh-button:disabled {
-		opacity: 0.5;
-		cursor: not-allowed;
-		background: #374151;
-	}
-
-	.refresh-icon {
-		width: 1rem;
-		height: 1rem;
-	}
-
-	.refresh-icon.spinning {
-		animation: spin 1s linear infinite;
-	}
-
-	@keyframes spin {
-		to { transform: rotate(360deg); }
-	}
-
-	.error {
-		margin-top: 1.5rem;
-		padding: 1rem;
-		background-color: #7f1d1d;
-		border: 1px solid #dc2626;
-		border-radius: 0.5rem;
-		color: #fca5a5;
-	}
-
-	.loading {
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		justify-content: center;
-		padding: 4rem 2rem;
-		gap: 1rem;
-	}
-
-	.spinner {
-		width: 3rem;
-		height: 3rem;
-		border: 3px solid #374151;
-		border-top-color: #34d399;
-		border-radius: 50%;
-		animation: spin 1s linear infinite;
-	}
-
 	.charts-grid {
 		display: grid;
 		grid-template-columns: repeat(2, 1fr);
@@ -324,18 +206,6 @@
 
 	.charts-grid > :nth-child(3) {
 		grid-column: 1 / -1;
-	}
-
-	.no-data-message {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		height: 150px;
-		color: #6b7280;
-		font-size: 0.875rem;
-		background: rgba(55, 65, 81, 0.3);
-		border-radius: 0.5rem;
-		border: 1px dashed #374151;
 	}
 
 	.combined-rule-content {
@@ -375,13 +245,8 @@
 		color: #e5e7eb;
 	}
 
-	.stat-value.success {
-		color: #10b981;
-	}
-
-	.stat-value.failed {
-		color: #ef4444;
-	}
+	.stat-value.success { color: #10b981; }
+	.stat-value.failed { color: #ef4444; }
 
 	.stat-percent {
 		font-size: 0.8125rem;
@@ -419,30 +284,12 @@
 		align-items: center;
 	}
 
-	.reason-column {
-		font-weight: 600;
-		color: #e5e7eb;
-	}
-
-	.reason-type {
-		color: #9ca3af;
-		font-style: italic;
-	}
-
-	.reason-count {
-		color: #f87171;
-		font-weight: 600;
-	}
+	.reason-column { font-weight: 600; color: #e5e7eb; }
+	.reason-type { color: #9ca3af; font-style: italic; }
+	.reason-count { color: #f87171; font-weight: 600; }
 
 	@media (max-width: 768px) {
-		.page-container {
-			padding: 1rem;
-		}
-
-		.charts-grid {
-			grid-template-columns: 1fr;
-		}
+		.page-container { padding: 1rem; }
+		.charts-grid { grid-template-columns: 1fr; }
 	}
 </style>
-
-

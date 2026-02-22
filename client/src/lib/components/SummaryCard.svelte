@@ -56,7 +56,7 @@
 	}
 
 	.val.success { color: #34d399; }
-	.val.failed  { color: #fb923c; }
+	.val.failed  { color: #f87171; }
 	.val.info    { color: #34d399; }
 </style>
 

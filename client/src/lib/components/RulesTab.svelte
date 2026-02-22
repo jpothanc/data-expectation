@@ -1,13 +1,13 @@
 <script lang="ts">
 	import { getRules, getRulesYaml, getCombinedRuleNames, getCombinedRuleDetails, getCombinedRuleDetailsYaml } from '../services/api';
 	import { DEFAULT_EXCHANGE } from '../constants';
-	import { exchangesStore, fetchExchanges, getDefaultExchange } from '../stores/exchanges.svelte';
+	import { exchangesStore, setupExchangeInit } from '../stores/exchanges.svelte';
 	import { convertToTableData } from '../utils/table';
 	import DataTable from './DataTable.svelte';
 	import Select from './Select.svelte';
 
 	interface Props {
-		productType?: 'stock' | 'future' | 'option';
+		productType?: 'stock' | 'future' | 'option' | 'multileg';
 	}
 
 	let { productType = 'stock' }: Props = $props();
@@ -23,7 +23,43 @@
 	let error = $state<string | null>(null);
 	let rulesData = $state<any | null>(null);
 	let yamlData = $state<string | null>(null);
+	let yamlCopied = $state(false);
 	const INSTRUMENT_TYPE = productType;
+
+	function highlightYaml(src: string): string {
+		return src
+			.split('\n')
+			.map((raw) => {
+				const line = raw.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+				if (!line.trim()) return line;
+				if (line.trimStart().startsWith('#')) return `<span class="y-comment">${line}</span>`;
+				const kvMatch = line.match(/^(\s*(?:-\s+)?)([a-zA-Z_][a-zA-Z0-9_]*)(\s*:.*)$/);
+				if (kvMatch) {
+					const [, indent, key, rest] = kvMatch;
+					const coloredRest = rest.replace(
+						/^(\s*:\s*)(.+)?$/,
+						(_, colon, val) => val ? `${colon}<span class="y-value">${val}</span>` : colon
+					);
+					return `${indent}<span class="y-key">${key}</span>${coloredRest}`;
+				}
+				const liMatch = line.match(/^(\s*)(-)(\s+.+)$/);
+				if (liMatch) {
+					const [, indent, dash, rest] = liMatch;
+					return `${indent}<span class="y-dash">${dash}</span><span class="y-list-val">${rest}</span>`;
+				}
+				return line;
+			})
+			.join('\n');
+	}
+
+	async function copyYaml() {
+		if (!yamlData) return;
+		try {
+			await navigator.clipboard.writeText(yamlData);
+			yamlCopied = true;
+			setTimeout(() => (yamlCopied = false), 2000);
+		} catch { /* clipboard unavailable */ }
+	}
 
 	// Use shared exchanges store (per-product-type access)
 	const exchanges = $derived.by(() => exchangesStore.getExchanges(productType));
@@ -77,22 +113,7 @@
 		}
 	}
 
-	// Fetch exchanges on mount (only once)
-	let exchangesFetched = $state(false);
-	$effect(() => {
-		// Only fetch if not already initialized and not currently loading
-		if (!exchangesStore.isInitialized(productType) && !exchangesStore.isLoading(productType) && !exchangesFetched) {
-			exchangesFetched = true;
-			fetchExchanges(productType);
-		}
-	});
-	
-	// Set default exchange when exchanges are loaded (separate effect to avoid loop)
-	$effect(() => {
-		if (exchangesStore.isInitialized(productType) && exchanges.length > 0 && !exchanges.find(e => e.value === selectedExchange)) {
-			selectedExchange = getDefaultExchange(productType);
-		}
-	});
+	setupExchangeInit(productType, () => selectedExchange, (v) => { selectedExchange = v; });
 
 	// Fetch combined rule names when switching to combined rules or when exchange changes
 	$effect(() => {
@@ -229,25 +250,25 @@
 		<div class="yaml-container">
 			<div class="yaml-header">
 				<h3>
-					{ruleType === 'combined' && selectedCombinedRule 
-						? `Combined Rule: ${selectedCombinedRule} (YAML)` 
-						: 'Rules in YAML Format'}
+					{ruleType === 'combined' && selectedCombinedRule
+						? `Combined Rule: ${selectedCombinedRule}`
+						: 'Rules — YAML'}
 				</h3>
-				<button 
-					onclick={() => {
-						navigator.clipboard.writeText(yamlData);
-					}}
-					class="copy-btn"
-					type="button"
-					title="Copy to clipboard"
-				>
-					<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-					</svg>
-					Copy
+				<button onclick={copyYaml} class="copy-btn" type="button">
+					{#if yamlCopied}
+						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+							<path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+						</svg>
+						Copied
+					{:else}
+						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+							<path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+						</svg>
+						Copy
+					{/if}
 				</button>
 			</div>
-			<pre class="yaml-content"><code>{yamlData}</code></pre>
+			<pre class="yaml-content">{@html highlightYaml(yamlData)}</pre>
 		</div>
 	{/if}
 
@@ -279,10 +300,6 @@
 </div>
 
 <style>
-	.rules-tab {
-		/* Container styles */
-	}
-
 	.controls {
 		display: flex;
 		gap: 0.625rem;
@@ -446,8 +463,7 @@
 	}
 
 	.yaml-container {
-		margin-top: 1.5rem;
-		background-color: #111827;
+		margin-top: 1rem;
 		border: 1px solid #374151;
 		border-radius: 0.5rem;
 		overflow: hidden;
@@ -457,90 +473,68 @@
 		display: flex;
 		justify-content: space-between;
 		align-items: center;
-		padding: 0.5rem 0.875rem;
-		background-color: #1f2937;
-		border-bottom: 1px solid #374151;
+		padding: 0.625rem 1.25rem;
+		background-color: #111827;
+		border-bottom: 1px solid #1f2937;
 	}
 
 	.yaml-header h3 {
 		margin: 0;
-		font-size: 0.875rem;
+		font-size: 0.8125rem;
 		font-weight: 600;
-		color: #e5e7eb;
+		color: #fff;
 	}
 
 	.copy-btn {
 		display: flex;
 		align-items: center;
 		gap: 0.35rem;
-		padding: 0.3rem 0.75rem;
-		background-color: var(--color-primary);
-		color: white;
-		border: none;
+		background: #1f2937;
+		border: 1px solid #374151;
 		border-radius: 0.375rem;
-		font-size: 0.8125rem;
-		font-weight: 500;
+		color: #d1d5db;
+		font-size: 0.75rem;
+		padding: 0.3rem 0.75rem;
 		cursor: pointer;
-		transition: background-color 0.2s, transform 0.1s;
+		transition: all 0.2s;
 	}
 
 	.copy-btn:hover {
-		background-color: var(--color-hover);
-		transform: translateY(-1px);
-	}
-
-	.copy-btn:active {
-		transform: translateY(0);
+		background: #374151;
+		color: #fff;
 	}
 
 	.copy-btn svg {
-		width: 1rem;
-		height: 1rem;
+		width: 0.875rem;
+		height: 0.875rem;
 	}
 
 	.yaml-content {
 		margin: 0;
-		padding: 1.5rem;
+		padding: 1rem 1.25rem;
 		overflow-x: auto;
-		background-color: #0f172a;
-		color: #e2e8f0;
-		font-family: 'Courier New', Courier, monospace;
-		font-size: 0.875rem;
-		line-height: 1.6;
-		max-height: 70vh;
 		overflow-y: auto;
-		/* Firefox scrollbar */
-		scrollbar-width: thin;
-		scrollbar-color: var(--color-primary-dark) #111827;
-	}
-
-	/* Custom scrollbar styling with theme */
-	.yaml-content::-webkit-scrollbar {
-		width: 8px;
-		height: 8px;
-	}
-
-	.yaml-content::-webkit-scrollbar-track {
-		background-color: #111827;
-		border-radius: 4px;
-	}
-
-	.yaml-content::-webkit-scrollbar-thumb {
-		background-color: var(--color-primary-dark);
-		border-radius: 4px;
-		border: 1px solid #111827;
-	}
-
-	.yaml-content::-webkit-scrollbar-thumb:hover {
-		background-color: var(--color-primary);
-	}
-
-	.yaml-content code {
-		display: block;
+		background: #0d1117;
+		color: #e5e7eb;
+		font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+		font-size: 0.75rem;
+		line-height: 1.7;
+		max-height: 70vh;
 		white-space: pre;
-		color: inherit;
-		font-family: inherit;
-		font-size: inherit;
+		tab-size: 2;
+		scrollbar-width: thin;
+		scrollbar-color: var(--color-primary-dark) #0d1117;
 	}
+
+	.yaml-content::-webkit-scrollbar { width: 8px; height: 8px; }
+	.yaml-content::-webkit-scrollbar-track { background: #0d1117; }
+	.yaml-content::-webkit-scrollbar-thumb { background: var(--color-primary-dark); border-radius: 4px; }
+	.yaml-content::-webkit-scrollbar-thumb:hover { background: var(--color-primary); }
+
+	:global(.y-comment) { color: #6b7280; font-style: italic; }
+	:global(.y-key)     { color: #60a5fa; font-weight: 600; }
+	:global(.y-value)   { color: #a3e635; }
+	:global(.y-dash)    { color: #f59e0b; }
+	:global(.y-list-val){ color: #e5e7eb; }
 </style>
 

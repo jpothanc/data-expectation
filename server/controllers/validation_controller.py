@@ -190,7 +190,8 @@ def get_rule_failures_by_region():
           - stock
           - option
           - future
-        description: Filter by product type (stock, option, or future)
+          - multileg
+        description: Filter by product type (stock, option, future, or multileg)
     responses:
       200:
         description: Rule failure statistics grouped by region
@@ -235,7 +236,8 @@ def get_expectation_failures_by_region():
           - stock
           - option
           - future
-        description: Filter by product type (stock, option, or future)
+          - multileg
+        description: Filter by product type (stock, option, future, or multileg)
     responses:
       200:
         description: Expectation failure statistics grouped by region
@@ -464,7 +466,8 @@ def get_regional_trends():
           - stock
           - option
           - future
-        description: Filter by product type (stock, option, or future)
+          - multileg
+        description: Filter by product type (stock, option, future, or multileg)
     responses:
       200:
         description: Regional trend data grouped by region

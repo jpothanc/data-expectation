@@ -28,6 +28,14 @@
           "XPAR": "futures/db_par.csv",
           "XNYS": "futures/db_nys.csv",
           "XNAS": "futures/db_nas.csv"
+        },
+        "multileg": {
+          "XHKG": "multileg/db_hkg.csv",
+          "XTKS": "multileg/db_tks.csv",
+          "XLON": "multileg/db_lon.csv",
+          "XPAR": "multileg/db_par.csv",
+          "XNYS": "multileg/db_nys.csv",
+          "XNAS": "multileg/db_nas.csv"
         }
       }
     },
@@ -36,7 +44,8 @@
       "query_templates": {
         "stock": "SELECT * FROM StockMaster WHERE Exchange = :exchange",
         "option": "SELECT * FROM OptionMaster WHERE Exchange = :exchange",
-        "future": "SELECT * FROM FutureMaster WHERE Exchange = :exchange"
+        "future": "SELECT * FROM FutureMaster WHERE Exchange = :exchange",
+        "multileg": "SELECT * FROM MultiLegMaster WHERE Exchange = :exchange"
       }
     }
   },
@@ -83,17 +92,20 @@
     "apac": {
       "stock": "XHKG,XNSE,XTKS",
       "option": "XHKG,XTKS",
-      "future": "XHKG,XTKS"
+      "future": "XHKG,XTKS",
+      "multileg": "XHKG,XTKS"
     },
     "emea": {
       "stock": "XLON,XPAR",
       "option": "XLON,XPAR",
-      "future": "XLON,XPAR"
+      "future": "XLON,XPAR",
+      "multileg": "XLON,XPAR"
     },
     "us": {
       "stock": "XNYS,XNAS",
       "option": "XNYS,XNAS",
-      "future": "XNYS,XNAS"
+      "future": "XNYS,XNAS",
+      "multileg": "XNYS,XNAS"
     }
   }
 }
