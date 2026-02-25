@@ -1,8 +1,8 @@
 <script lang="ts">
 	import type { ExchangeValidationResult, PassedExchangeRun } from '$lib/services/api';
-	import ReportSummary from './reports/ReportSummary.svelte';
-	import RunsTable from './reports/RunsTable.svelte';
-	import PassedExchangesPanel from './reports/PassedExchangesPanel.svelte';
+	import ReportSummary from '../reports/ReportSummary.svelte';
+	import RunsTable from '../reports/RunsTable.svelte';
+	import PassedExchangesPanel from '../reports/PassedExchangesPanel.svelte';
 
 	interface Props {
 		exchange: string;

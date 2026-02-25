@@ -1,11 +1,11 @@
 <script lang="ts">
-	import { getInstrumentsByExchange, getInstrumentById, getInstrumentByRic } from '../services/api';
-	import { convertInstrumentsToTableData } from '../utils/table';
-	import { DEFAULT_EXCHANGE } from '../constants';
-	import { exchangesStore, setupExchangeInit } from '../stores/exchanges.svelte';
-	import DataTable from './DataTable.svelte';
-	import Select from './Select.svelte';
-	import InstrumentDetailsModal from './InstrumentDetailsModal.svelte';
+	import { getInstrumentsByExchange, getInstrumentById, getInstrumentByRic } from '../../services/api';
+	import { convertInstrumentsToTableData } from '../../utils/table';
+	import { DEFAULT_EXCHANGE } from '../../constants';
+	import { exchangesStore, setupExchangeInit } from '../../stores/exchanges.svelte';
+	import DataTable from '../ui/DataTable.svelte';
+	import Select from '../ui/Select.svelte';
+	import InstrumentDetailsModal from '../modals/InstrumentDetailsModal.svelte';
 
 	interface Props {
 		productType?: 'stock' | 'future' | 'option' | 'multileg';

@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
-	import HomeButton from '$lib/components/HomeButton.svelte';
+	import HomeButton from '$lib/components/ui/HomeButton.svelte';
 	
 	let { children } = $props();
 

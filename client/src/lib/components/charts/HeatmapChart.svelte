@@ -1,10 +1,10 @@
 <script lang="ts">
 	import { onDestroy } from 'svelte';
-	import type { RegionalTrendResponse, ExchangeValidationResponse } from '../services/api';
-	import { getValidationResultsByRegionDate } from '../services/api';
-	import { withTimeout } from '../utils/promise';
-	import { API_TIMEOUTS } from '../constants/timeouts';
-	import ErrorDetailsPanel from './ErrorDetailsPanel.svelte';
+	import type { RegionalTrendResponse, ExchangeValidationResponse } from '../../services/api';
+	import { getValidationResultsByRegionDate } from '../../services/api';
+	import { withTimeout } from '../../utils/promise';
+	import { API_TIMEOUTS } from '../../constants/timeouts';
+	import ErrorDetailsPanel from '../validation/ErrorDetailsPanel.svelte';
 
 	interface Props {
 		data: RegionalTrendResponse['data'];

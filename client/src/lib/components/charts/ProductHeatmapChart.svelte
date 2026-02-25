@@ -1,10 +1,10 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import type { HeatmapData } from '../services/api';
-	import { getExchangeValidationResults, type ExchangeValidationResponse } from '../services/api';
-	import { withTimeout } from '../utils/promise';
-	import { API_TIMEOUTS } from '../constants/timeouts';
-	import ExchangeResultsModal from './ExchangeResultsModal.svelte';
+	import type { HeatmapData } from '../../services/api';
+	import { getExchangeValidationResults, type ExchangeValidationResponse } from '../../services/api';
+	import { withTimeout } from '../../utils/promise';
+	import { API_TIMEOUTS } from '../../constants/timeouts';
+	import ExchangeResultsModal from '../modals/ExchangeResultsModal.svelte';
 
 	interface Props {
 		data: HeatmapData[];

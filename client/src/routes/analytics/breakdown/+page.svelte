@@ -3,13 +3,13 @@
 	import { page } from '$app/stores';
 	import { withTimeout } from '$lib/utils/promise';
 	import { getTreemap, getExchangeValidationResults, type TreemapData, type ExchangeValidationResponse } from '$lib/services/api';
-	import ExchangeResultsModal from '$lib/components/ExchangeResultsModal.svelte';
-	import TreemapChart from '$lib/components/TreemapChart.svelte';
-	import ChartCard from '$lib/components/ChartCard.svelte';
-	import PageControls from '$lib/components/PageControls.svelte';
-	import LoadingState from '$lib/components/LoadingState.svelte';
-	import ErrorBanner from '$lib/components/ErrorBanner.svelte';
-	import EmptyState from '$lib/components/EmptyState.svelte';
+	import ExchangeResultsModal from '$lib/components/modals/ExchangeResultsModal.svelte';
+	import TreemapChart from '$lib/components/charts/TreemapChart.svelte';
+	import ChartCard from '$lib/components/charts/ChartCard.svelte';
+	import PageControls from '$lib/components/ui/PageControls.svelte';
+	import LoadingState from '$lib/components/ui/LoadingState.svelte';
+	import ErrorBanner from '$lib/components/ui/ErrorBanner.svelte';
+	import EmptyState from '$lib/components/ui/EmptyState.svelte';
 
 	let loading = $state(true);
 	let error = $state<string | null>(null);

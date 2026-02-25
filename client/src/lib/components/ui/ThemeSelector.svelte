@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { themeStore, themes } from '../stores/theme.svelte';
+	import { themeStore, themes } from '../../stores/theme.svelte';
 
 	let isOpen = $state(false);
 

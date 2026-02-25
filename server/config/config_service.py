@@ -234,3 +234,11 @@ class ConfigService:
             'run_sessions_lookback_days': 90,
         })
 
+    def get_regions_config(self) -> dict:
+        """Return the top-level ``regions`` block from the config file.
+
+        Structure: ``{ region_name: { product_type: [...exchanges] } }``.
+        Returns an empty dict when the key is absent.
+        """
+        return self._config.get('regions', {})
+

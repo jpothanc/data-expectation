@@ -1,132 +1,114 @@
-"""Rule controller for running validation rules per exchange."""
+"""Rule controller — HTTP endpoints for rule inspection and exchange validation.
+
+Responsibilities of this module:
+  - Declare Flask routes (Blueprint).
+  - Parse and validate request parameters.
+  - Delegate to ValidationService.
+  - Translate domain exceptions into consistent HTTP responses.
+
+Nothing else.
+"""
 
 import logging
-import traceback
 import threading
 from flask import Blueprint, request, jsonify, Response
 from services.validation_service import ValidationService
 from services.loader_factory import LoaderFactory
+from services.exceptions import ExchangeNotFoundError, ProcessorSetupError, DataFileNotFoundError
+from controllers.utils import bad_request, not_found, server_error
 import yaml
 
 logger = logging.getLogger(__name__)
 rule_api = Blueprint('rule_api', __name__)
 
-# Thread-local storage for services to avoid conflicts in concurrent requests
+# Thread-local storage ensures each worker thread gets its own service instance,
+# preventing file-handle conflicts when GE validators are used concurrently.
 _thread_local = threading.local()
 
 
-def get_validation_service(product_type='stock'):
-    """Get or create a validation service instance for the current thread/request.
-    
-    This ensures each request gets its own service instance, preventing
-    file handle conflicts and race conditions in parallel processing.
-    
-    Args:
-        product_type: Product type ('stock', 'option', 'future'). Defaults to 'stock'.
-    """
+# ---------------------------------------------------------------------------
+# Internal helpers
+# ---------------------------------------------------------------------------
+
+def _get_validation_service(product_type: str = 'stock') -> ValidationService:
+    """Return a thread-local ValidationService, creating it on first use per thread."""
     cache_key = f'validation_service_{product_type}'
-    
     if not hasattr(_thread_local, cache_key):
-        loader_factory = LoaderFactory()
-        loader = loader_factory.create_loader()
-        exchange_map = loader_factory.get_exchange_map(product_type=product_type)
+        factory = LoaderFactory()
         setattr(_thread_local, cache_key, ValidationService(
-            loader, 
-            exchange_map=exchange_map, 
-            product_type=product_type
+            factory.create_loader(),
+            exchange_map=factory.get_exchange_map(product_type=product_type),
+            product_type=product_type,
         ))
-    
     return getattr(_thread_local, cache_key)
 
 
-def _parse_custom_rules():
-    """Parse custom rules from request (GET or POST)."""
+def _parse_custom_rules() -> tuple[list[str] | None, list | None]:
+    """Extract custom rule names and definitions from GET query params or POST body."""
     if request.method == 'POST':
-        data = request.get_json() or {}
-        return data.get('custom_rule_names'), data.get('custom_rules')
-    else:
-        custom_rule_names_param = request.args.get('custom_rule_names')
-        if custom_rule_names_param:
-            return [name.strip() for name in custom_rule_names_param.split(",")], None
-        return None, None
+        body = request.get_json() or {}
+        return body.get('custom_rule_names'), body.get('custom_rules')
+
+    raw = request.args.get('custom_rule_names')
+    if raw:
+        return [name.strip() for name in raw.split(',')], None
+    return None, None
 
 
-def _parse_custom_rule_names_from_query():
-    """Parse comma-separated custom rule names from query parameter."""
-    custom_rule_names_param = request.args.get('custom_rule_names')
-    if custom_rule_names_param:
-        return [name.strip() for name in custom_rule_names_param.split(",")]
-    return None
+def _parse_custom_rule_names_from_query() -> list[str] | None:
+    """Extract comma-separated custom rule names from the query string."""
+    raw = request.args.get('custom_rule_names')
+    return [name.strip() for name in raw.split(',')] if raw else None
 
 
-def _handle_validation_error(e, exchange, product_type):
-    """Handle validation errors with consistent error responses."""
-    error_type = type(e).__name__
-    error_msg = str(e)
+def _handle_validation_error(e: Exception, exchange: str, product_type: str) -> tuple:
+    """Translate a service-layer exception into a consistent HTTP error response.
+
+    Uses the typed exception hierarchy from ``services.exceptions`` — no
+    string-inspection of error messages required.
+    """
+    if isinstance(e, ExchangeNotFoundError):
+        return not_found(str(e), available_exchanges=e.available, exchange=exchange)
+
+    if isinstance(e, ProcessorSetupError):
+        logger.error("Processor setup failure for %s/%s: %s", product_type, exchange, e)
+        return server_error(str(e), exchange=exchange, product_type=product_type)
+
+    if isinstance(e, DataFileNotFoundError):
+        logger.error("Data file missing for %s/%s: %s", product_type, exchange, e)
+        return not_found(str(e), exchange=exchange)
 
     if isinstance(e, (IOError, OSError)):
-        # Infrastructure / GE internal errors — not a 404, the resource exists
-        logger.error("I/O error for %s/%s: %s", product_type, exchange, error_msg)
-        return jsonify({
-            "error": error_msg,
-            "error_type": error_type,
-            "exchange": exchange,
-            "product_type": product_type,
-        }), 500
+        logger.error("I/O error for %s/%s: %s", product_type, exchange, e)
+        return server_error(str(e), exchange=exchange, product_type=product_type)
+
+    if isinstance(e, FileNotFoundError):
+        logger.error("FileNotFoundError for %s/%s: %s", product_type, exchange, e)
+        return not_found(str(e), exchange=exchange)
 
     if isinstance(e, ValueError):
-        logger.error(f"ValueError for {exchange}: {error_msg}")
-        # Processor/GE setup failures are 500s, not 404s
-        if any(tok in error_msg.lower() for tok in ("closed file", "failed to create processor", "failed to setup")):
-            return jsonify({
-                "error": error_msg,
-                "error_type": error_type,
-                "exchange": exchange,
-                "product_type": product_type,
-            }), 500
-        if "Exchange" in error_msg and "not found" in error_msg:
-            validation_service = get_validation_service(product_type=product_type)
-            return jsonify({
-                "error": error_msg,
-                "error_type": error_type,
-                "available_exchanges": list(validation_service.exchange_map.keys()),
-                "exchange_map": validation_service.exchange_map
-            }), 404
-        return jsonify({
-            "error": error_msg,
-            "error_type": error_type,
-            "exchange": exchange,
-            "product_type": product_type
-        }), 404
+        logger.error("ValueError for %s/%s: %s", product_type, exchange, e)
+        return not_found(str(e), exchange=exchange, product_type=product_type)
 
-    elif isinstance(e, FileNotFoundError):
-        logger.error(f"FileNotFoundError for {exchange}: {error_msg}")
-        validation_service = get_validation_service(product_type=product_type)
-        return jsonify({
-            "error": error_msg,
-            "error_type": "FileNotFoundError",
-            "exchange": exchange,
-            "expected_file": validation_service.exchange_map.get(exchange, "unknown"),
-            "exchange_map": validation_service.exchange_map
-        }), 404
-    
-    else:
-        logger.error(f"Unexpected error for {exchange} ({error_type}): {error_msg}")
-        logger.error(traceback.format_exc())
-        return jsonify({
-            "error": f"Validation error: {error_msg}",
-            "error_type": error_type,
-            "exchange": exchange,
-            "product_type": product_type,
-            "traceback": traceback.format_exc() if __debug__ else None
-        }), 500
+    logger.error("Unexpected error for %s/%s (%s): %s",
+                 product_type, exchange, type(e).__name__, e, exc_info=True)
+    return server_error(
+        f"Unexpected validation error: {e}",
+        exchange=exchange,
+        product_type=product_type,
+        error_type=type(e).__name__,
+    )
 
 
-def _to_yaml_response(data, status_code=200):
-    """Convert data to YAML response."""
+def _to_yaml_response(data: dict, status_code: int = 200) -> tuple:
+    """Serialise *data* to a plain-text YAML response."""
     yaml_output = yaml.dump(data, default_flow_style=False, allow_unicode=True, sort_keys=False)
     return Response(yaml_output, mimetype='text/plain; charset=utf-8'), status_code
 
+
+# ---------------------------------------------------------------------------
+# Routes
+# ---------------------------------------------------------------------------
 
 @rule_api.route('/validate/<product_type>/<exchange>', methods=['POST', 'GET'])
 def validate_exchange(product_type, exchange):
@@ -149,30 +131,27 @@ def validate_exchange(product_type, exchange):
         in: query
         type: string
         required: false
-        description: Comma-separated list of custom rule names (for GET requests)
+        description: Comma-separated list of custom rule names (GET requests)
     responses:
       200:
         description: Validation results
       404:
-        description: Exchange not found or validation failed
+        description: Exchange not found
       500:
         description: Internal server error
     """
     try:
-        logger.info(f"Validation request: product_type={product_type}, exchange={exchange}")
+        logger.info("Validation request: product_type=%s, exchange=%s", product_type, exchange)
         custom_rule_names, custom_rules = _parse_custom_rules()
-        
-        validation_service = get_validation_service(product_type=product_type)
-        results = validation_service.validate_exchange(
+        results = _get_validation_service(product_type).validate_exchange(
             exchange,
             custom_rule_names=custom_rule_names,
             custom_rules=custom_rules,
-            product_type=product_type
+            product_type=product_type,
         )
-        
-        logger.info(f"Validation successful for {exchange}")
+        logger.info("Validation successful for %s/%s", product_type, exchange)
         return jsonify(results)
-    except (ValueError, FileNotFoundError, Exception) as e:
+    except Exception as e:
         return _handle_validation_error(e, exchange, product_type)
 
 
@@ -205,22 +184,21 @@ def validate_exchange_custom(product_type, exchange):
     """
     try:
         custom_rule_names, custom_rules = _parse_custom_rules()
-        validation_service = get_validation_service(product_type=product_type)
-        results = validation_service.validate_custom_only(
+        results = _get_validation_service(product_type).validate_custom_only(
             exchange,
             custom_rule_names=custom_rule_names,
             custom_rules=custom_rules,
-            product_type=product_type
+            product_type=product_type,
         )
         return jsonify(results)
     except ValueError as e:
-        status_code = 400 if "At least one custom rule" in str(e) else 404
-        return jsonify({"error": str(e)}), status_code
+        status = 400 if "At least one custom rule" in str(e) else 404
+        return jsonify({"error": str(e)}), status
     except FileNotFoundError as e:
-        return jsonify({"error": str(e)}), 404
+        return not_found(str(e))
     except Exception as e:
-        logger.error(f"Validation error: {e}", exc_info=True)
-        return jsonify({"error": f"Validation error: {str(e)}"}), 500
+        logger.error("Custom validation error for %s/%s: %s", product_type, exchange, e, exc_info=True)
+        return server_error(f"Validation error: {e}")
 
 
 @rule_api.route('/rules/<product_type>/<exchange>', methods=['GET'])
@@ -244,7 +222,6 @@ def get_rules_for_exchange(product_type, exchange):
         in: query
         type: string
         required: false
-        description: Comma-separated list of custom rule names to include
     responses:
       200:
         description: List of rules
@@ -254,25 +231,23 @@ def get_rules_for_exchange(product_type, exchange):
         description: Error retrieving rules
     """
     try:
-        custom_rule_names = _parse_custom_rule_names_from_query()
-        validation_service = get_validation_service(product_type=product_type)
-        rules = validation_service.get_rules_for_exchange(
+        rules = _get_validation_service(product_type).get_rules_for_exchange(
             exchange,
             product_type=product_type,
-            custom_rule_names=custom_rule_names
+            custom_rule_names=_parse_custom_rule_names_from_query(),
         )
         return jsonify(rules)
     except ValueError as e:
-        return jsonify({"error": str(e)}), 404
+        return not_found(str(e))
     except Exception as e:
-        logger.error(f"Error retrieving rules: {e}", exc_info=True)
-        return jsonify({"error": f"Error retrieving rules: {str(e)}"}), 500
+        logger.error("Error retrieving rules for %s/%s: %s", product_type, exchange, e, exc_info=True)
+        return server_error(f"Error retrieving rules: {e}")
 
 
 @rule_api.route('/rules-yaml/<product_type>/<exchange>', methods=['GET'])
 def get_rules_for_exchange_yaml(product_type, exchange):
     """
-    Get all rules that would be applied for a specific exchange and product type in YAML format
+    Get all rules for a specific exchange and product type in YAML format
     ---
     tags:
       - Rules
@@ -290,7 +265,6 @@ def get_rules_for_exchange_yaml(product_type, exchange):
         in: query
         type: string
         required: false
-        description: Comma-separated list of custom rule names to include
     responses:
       200:
         description: Rules in YAML format
@@ -300,19 +274,18 @@ def get_rules_for_exchange_yaml(product_type, exchange):
         description: Error retrieving rules
     """
     try:
-        custom_rule_names = _parse_custom_rule_names_from_query()
-        validation_service = get_validation_service(product_type=product_type)
-        rules = validation_service.get_rules_for_exchange(
+        rules = _get_validation_service(product_type).get_rules_for_exchange(
             exchange,
             product_type=product_type,
-            custom_rule_names=custom_rule_names
+            custom_rule_names=_parse_custom_rule_names_from_query(),
         )
         return _to_yaml_response(rules)
     except ValueError as e:
         return _to_yaml_response({"error": str(e)}, 404)
     except Exception as e:
-        logger.error(f"Error retrieving rules: {e}", exc_info=True)
-        return _to_yaml_response({"error": f"Error retrieving rules: {str(e)}"}, 500)
+        logger.error("Error retrieving rules (YAML) for %s/%s: %s",
+                     product_type, exchange, e, exc_info=True)
+        return _to_yaml_response({"error": f"Error retrieving rules: {e}"}, 500)
 
 
 @rule_api.route('/combined-rules/<product_type>/<exchange>', methods=['GET'])
@@ -339,15 +312,15 @@ def get_combined_rule_names(product_type, exchange):
         description: Error retrieving combined rule names
     """
     try:
-        validation_service = get_validation_service(product_type=product_type)
-        result = validation_service.get_combined_rule_names(
+        result = _get_validation_service(product_type).get_combined_rule_names(
             product_type=product_type,
-            exchange=exchange
+            exchange=exchange,
         )
         return jsonify(result)
     except Exception as e:
-        logger.error(f"Error retrieving combined rule names: {e}", exc_info=True)
-        return jsonify({"error": f"Error retrieving combined rule names: {str(e)}"}), 500
+        logger.error("Error retrieving combined rule names for %s/%s: %s",
+                     product_type, exchange, e, exc_info=True)
+        return server_error(f"Error retrieving combined rule names: {e}")
 
 
 @rule_api.route('/combined-rules-details/<product_type>/<exchange>', methods=['GET'])
@@ -369,30 +342,30 @@ def get_combined_rule_details(product_type, exchange):
         required: true
     responses:
       200:
-        description: Detailed information about combined rules
+        description: Detailed combined rule information
       404:
         description: Exchange not found
       500:
         description: Error retrieving combined rule details
     """
     try:
-        validation_service = get_validation_service(product_type=product_type)
-        result = validation_service.get_combined_rule_details(
+        result = _get_validation_service(product_type).get_combined_rule_details(
             product_type=product_type,
-            exchange=exchange
+            exchange=exchange,
         )
         return jsonify(result)
     except ValueError as e:
-        return jsonify({"error": str(e)}), 404
+        return not_found(str(e))
     except Exception as e:
-        logger.error(f"Error retrieving combined rule details: {e}", exc_info=True)
-        return jsonify({"error": f"Error retrieving combined rule details: {str(e)}"}), 500
+        logger.error("Error retrieving combined rule details for %s/%s: %s",
+                     product_type, exchange, e, exc_info=True)
+        return server_error(f"Error retrieving combined rule details: {e}")
 
 
 @rule_api.route('/combined-rules-details-yaml/<product_type>/<exchange>', methods=['GET'])
 def get_combined_rule_details_yaml(product_type, exchange):
     """
-    Get detailed information about combined rules in YAML format
+    Get detailed combined rule information in YAML format
     ---
     tags:
       - Rules
@@ -410,7 +383,7 @@ def get_combined_rule_details_yaml(product_type, exchange):
         in: query
         type: string
         required: false
-        description: Optional specific combined rule name to get details for
+        description: Optional specific combined rule name to filter
     responses:
       200:
         description: Combined rule details in YAML format
@@ -421,46 +394,31 @@ def get_combined_rule_details_yaml(product_type, exchange):
     """
     try:
         rule_name = request.args.get('rule_name')
-        validation_service = get_validation_service(product_type=product_type)
-        
+        all_details = _get_validation_service(product_type).get_combined_rule_details(
+            product_type=product_type,
+            exchange=exchange,
+        )
+
         if rule_name:
-            all_details = validation_service.get_combined_rule_details(
-                product_type=product_type,
-                exchange=exchange
+            specific = next(
+                (r for r in all_details.get('combined_rules', []) if r.get('name') == rule_name),
+                None,
             )
-            
-            combined_rules = all_details.get('combined_rules', [])
-            specific_rule = next(
-                (rule for rule in combined_rules if rule.get('name') == rule_name),
-                None
-            )
-            
-            if not specific_rule:
+            if not specific:
                 return _to_yaml_response(
-                    {"error": f"Combined rule '{rule_name}' not found"}, 
-                    404
+                    {"error": f"Combined rule '{rule_name}' not found"}, 404
                 )
-            
-            result = {
-                "product_type": product_type,
-                "exchange": exchange,
-                "combined_rule": specific_rule
-            }
+            result = {"product_type": product_type, "exchange": exchange, "combined_rule": specific}
         else:
-            result = validation_service.get_combined_rule_details(
-                product_type=product_type,
-                exchange=exchange
-            )
-        
+            result = all_details
+
         return _to_yaml_response(result)
     except ValueError as e:
         return _to_yaml_response({"error": str(e)}, 404)
     except Exception as e:
-        logger.error(f"Error retrieving combined rule details: {e}", exc_info=True)
-        return _to_yaml_response(
-            {"error": f"Error retrieving combined rule details: {str(e)}"}, 
-            500
-        )
+        logger.error("Error retrieving combined rule details (YAML) for %s/%s: %s",
+                     product_type, exchange, e, exc_info=True)
+        return _to_yaml_response({"error": f"Error retrieving combined rule details: {e}"}, 500)
 
 
 @rule_api.route('/validate-by-masterid/<master_id>/<combined_rule_name>', methods=['GET'])
@@ -475,12 +433,10 @@ def validate_by_masterid(master_id, combined_rule_name):
         in: path
         type: string
         required: true
-        description: MasterId of the record to validate
       - name: combined_rule_name
         in: path
         type: string
         required: true
-        description: Name of the combined rule set to use for validation
       - name: product_type
         in: query
         type: string
@@ -495,17 +451,17 @@ def validate_by_masterid(master_id, combined_rule_name):
       500:
         description: Validation error
     """
+    product_type = request.args.get('product_type', 'stock')
     try:
-        product_type = request.args.get('product_type', 'stock')
-        validation_service = get_validation_service(product_type=product_type)
-        result = validation_service.validate_record_by_masterid(
+        result = _get_validation_service(product_type).validate_record_by_masterid(
             master_id=master_id,
             combined_rule_name=combined_rule_name,
-            product_type=product_type
+            product_type=product_type,
         )
         return jsonify(result)
     except (ValueError, FileNotFoundError) as e:
-        return jsonify({"error": str(e)}), 404
+        return not_found(str(e))
     except Exception as e:
-        logger.error(f"Validation error: {e}", exc_info=True)
-        return jsonify({"error": f"Validation error: {str(e)}"}), 500
+        logger.error("Validation error for master_id=%s rule=%s: %s",
+                     master_id, combined_rule_name, e, exc_info=True)
+        return server_error(f"Validation error: {e}")

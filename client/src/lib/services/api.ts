@@ -1,676 +1,402 @@
 import { API_BASE_URL, API_ENDPOINTS } from '../constants';
 import { extractInstruments } from '../utils/table';
-import type { ValidationResponse, Exchange } from '../types';
+import type {
+	ProductType,
+	Exchange,
+	ValidationResponse,
+	ChartResponse,
+	GlobalViewData,
+	HeatmapData,
+	TreemapData,
+	RuleFailureData,
+	RuleFailureByRegionData,
+	ExpectationFailureByRegionData,
+	CombinedRuleData,
+	ExchangeValidationResponse,
+	RegionalTrendResponse,
+	RunSessionsResponse,
+	CombinedRulesResponse,
+	Rule,
+} from '../types';
 
-/**
- * Helper function to create a fetch request with timeout and error handling
- */
+// ─── Structured API error ─────────────────────────────────────────────────────
+
+export class ApiError extends Error {
+	constructor(
+		public readonly status: number,
+		public readonly statusText: string,
+		public readonly body = ''
+	) {
+		super(`HTTP ${status} ${statusText}${body ? `: ${body}` : ''}`);
+		this.name = 'ApiError';
+	}
+}
+
+// ─── Core HTTP transport ──────────────────────────────────────────────────────
+
+const DEFAULT_TIMEOUT_MS = 30_000;
+
 async function apiRequest<T>(
 	endpoint: string,
 	options: RequestInit = {},
-	timeoutMs: number = 30000
+	timeoutMs = DEFAULT_TIMEOUT_MS
 ): Promise<T> {
 	const controller = new AbortController();
 	const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-	
+
 	try {
 		const response = await fetch(`${API_BASE_URL}${endpoint}`, {
 			...options,
-			signal: controller.signal
+			// Caller-supplied signal takes precedence; fall back to timeout signal.
+			signal: options.signal ?? controller.signal,
 		});
-		
+
 		clearTimeout(timeoutId);
-		
+
 		if (!response.ok) {
-			throw new Error(`HTTP error! status: ${response.status}`);
+			const body = await response.text().catch(() => '');
+			throw new ApiError(response.status, response.statusText, body);
 		}
-		
-		return await response.json();
+
+		return response.json() as Promise<T>;
 	} catch (err) {
 		clearTimeout(timeoutId);
+		if (err instanceof ApiError) throw err;
 		if (err instanceof Error && err.name === 'AbortError') {
-			throw new Error(`Request timeout after ${timeoutMs}ms`);
+			throw new ApiError(408, 'Request Timeout', `Timed out after ${timeoutMs}ms`);
 		}
 		throw err;
 	}
 }
 
-export async function validateStocks(exchange: string): Promise<ValidationResponse> {
-	const url = `${API_BASE_URL}${API_ENDPOINTS.validateStock}/${exchange}`;
-	const response = await fetch(url);
-	
-	if (!response.ok) {
-		throw new Error(`HTTP error! status: ${response.status}`);
+async function apiRequestText(endpoint: string, timeoutMs = DEFAULT_TIMEOUT_MS): Promise<string> {
+	const controller = new AbortController();
+	const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+	try {
+		const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+			signal: controller.signal,
+		});
+		clearTimeout(timeoutId);
+		if (!response.ok) {
+			throw new ApiError(response.status, response.statusText);
+		}
+		return response.text();
+	} catch (err) {
+		clearTimeout(timeoutId);
+		if (err instanceof ApiError) throw err;
+		if (err instanceof Error && err.name === 'AbortError') {
+			throw new ApiError(408, 'Request Timeout', `Timed out after ${timeoutMs}ms`);
+		}
+		throw err;
 	}
-	
-	return await response.json();
 }
 
-export async function validateFutures(exchange: string): Promise<ValidationResponse> {
-	const url = `${API_BASE_URL}${API_ENDPOINTS.validateFuture}/${exchange}`;
-	const response = await fetch(url);
-	if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-	return await response.json();
+// ─── URL builder ──────────────────────────────────────────────────────────────
+
+/**
+ * Builds a URL path with an optional query string.
+ * `undefined` values are omitted; arrays produce repeated keys (e.g. multi-value params).
+ */
+function buildUrl(
+	path: string,
+	params?: Record<string, string | number | boolean | undefined>
+): string {
+	if (!params) return path;
+	const qs = new URLSearchParams();
+	for (const [key, value] of Object.entries(params)) {
+		if (value !== undefined) qs.set(key, String(value));
+	}
+	const qsStr = qs.toString();
+	return qsStr ? `${path}?${qsStr}` : path;
 }
 
-export async function validateOptions(exchange: string): Promise<ValidationResponse> {
-	const url = `${API_BASE_URL}${API_ENDPOINTS.validateOption}/${exchange}`;
-	const response = await fetch(url);
-	if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-	return await response.json();
+// ─── Validation (live run) ────────────────────────────────────────────────────
+
+const VALIDATE_ENDPOINT: Record<ProductType, string> = {
+	stock: API_ENDPOINTS.validateStock,
+	option: API_ENDPOINTS.validateOption,
+	future: API_ENDPOINTS.validateFuture,
+	multileg: API_ENDPOINTS.validateMultileg,
+};
+
+export function validateExchange(
+	productType: ProductType,
+	exchange: string
+): Promise<ValidationResponse> {
+	return apiRequest<ValidationResponse>(`${VALIDATE_ENDPOINT[productType]}/${exchange}`);
 }
 
-export async function validateMultileg(exchange: string): Promise<ValidationResponse> {
-	const url = `${API_BASE_URL}${API_ENDPOINTS.validateMultileg}/${exchange}`;
-	const response = await fetch(url);
-	if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-	return await response.json();
-}
+// Convenience aliases kept for backwards-compatibility with existing call sites.
+export const validateStocks = (exchange: string) => validateExchange('stock', exchange);
+export const validateOptions = (exchange: string) => validateExchange('option', exchange);
+export const validateFutures = (exchange: string) => validateExchange('future', exchange);
+export const validateMultileg = (exchange: string) => validateExchange('multileg', exchange);
 
-export async function validateCustom(
-	instrumentType: string,
+export function validateCustom(
+	productType: string,
 	exchange: string,
 	customRuleNames: string[]
 ): Promise<ValidationResponse> {
-	// Build query parameters for custom rule names
-	const queryParams = customRuleNames.map(name => `custom_rule_names=${encodeURIComponent(name)}`).join('&');
-	const url = `${API_BASE_URL}${API_ENDPOINTS.validateCustom}/${instrumentType}/${exchange}?${queryParams}`;
-	const response = await fetch(url);
-	
-	if (!response.ok) {
-		throw new Error(`HTTP error! status: ${response.status}`);
-	}
-	
-	return await response.json();
+	// URLSearchParams supports repeated keys for multi-value query params.
+	const params = new URLSearchParams(
+		customRuleNames.map((n) => ['custom_rule_names', n] as [string, string])
+	);
+	return apiRequest<ValidationResponse>(
+		`${API_ENDPOINTS.validateCustom}/${productType}/${exchange}?${params}`
+	);
 }
 
-export async function validateCombinedRule(
-	instrumentType: string,
+export function validateCombinedRule(
+	productType: string,
 	exchange: string,
 	combinedRuleName: string
 ): Promise<ValidationResponse> {
-	// Use the validateCustom endpoint with combined rule name
-	// Combined rules are validated the same way as custom rules
-	const url = `${API_BASE_URL}${API_ENDPOINTS.validateCustom}/${instrumentType}/${exchange}?custom_rule_names=${encodeURIComponent(combinedRuleName)}`;
-	const response = await fetch(url);
-	
-	if (!response.ok) {
-		throw new Error(`HTTP error! status: ${response.status}`);
-	}
-	
-	return await response.json();
+	return validateCustom(productType, exchange, [combinedRuleName]);
 }
 
-export async function getInstrumentsByExchange(exchange: string, productType: string = 'stock'): Promise<any[]> {
-	const endpoint = `${API_ENDPOINTS.instrumentsByExchange}/${exchange}`;
-	const url = `${API_BASE_URL}${endpoint}?product_type=${productType}`;
-	const response = await fetch(url);
-	
-	if (!response.ok) {
-		throw new Error(`HTTP error! status: ${response.status}`);
-	}
-	
-	const result = await response.json();
+export function validateByMasterId(
+	masterId: string,
+	ruleName: string
+): Promise<ValidationResponse> {
+	return apiRequest<ValidationResponse>(
+		`${API_ENDPOINTS.validateByMasterId}/${encodeURIComponent(masterId)}/${encodeURIComponent(ruleName)}`
+	);
+}
+
+// ─── Instruments ──────────────────────────────────────────────────────────────
+
+export async function getInstrumentsByExchange(
+	exchange: string,
+	productType: ProductType = 'stock'
+): Promise<Record<string, unknown>[]> {
+	const result = await apiRequest<unknown>(
+		buildUrl(`${API_ENDPOINTS.instrumentsByExchange}/${exchange}`, { product_type: productType })
+	);
 	return extractInstruments(result);
 }
 
-export async function getInstrumentById(instrumentId: string, exchange?: string, productType: string = 'stock'): Promise<any[]> {
-	const endpoint = `${API_ENDPOINTS.instrumentById}/${encodeURIComponent(instrumentId)}`;
-	let url = `${API_BASE_URL}${endpoint}?product_type=${productType}`;
-	if (exchange) {
-		url += `&exchange=${encodeURIComponent(exchange)}`;
-	}
-	
-	const response = await fetch(url);
-	
-	if (!response.ok) {
-		throw new Error(`HTTP error! status: ${response.status}`);
-	}
-	
-	const result = await response.json();
+export async function getInstrumentById(
+	instrumentId: string,
+	exchange?: string,
+	productType: ProductType = 'stock'
+): Promise<Record<string, unknown>[]> {
+	const result = await apiRequest<unknown>(
+		buildUrl(`${API_ENDPOINTS.instrumentById}/${encodeURIComponent(instrumentId)}`, {
+			product_type: productType,
+			exchange,
+		})
+	);
 	return extractInstruments(result);
 }
 
-export async function getInstrumentByRic(ric: string, exchange?: string, productType: string = 'stock'): Promise<any[]> {
-	const endpoint = `${API_ENDPOINTS.instrumentByRic}/${encodeURIComponent(ric)}`;
-	let url = `${API_BASE_URL}${endpoint}?product_type=${productType}`;
-	if (exchange) {
-		url += `&exchange=${encodeURIComponent(exchange)}`;
-	}
-	
-	const response = await fetch(url);
-	
-	if (!response.ok) {
-		throw new Error(`HTTP error! status: ${response.status}`);
-	}
-	
-	const result = await response.json();
+export async function getInstrumentByRic(
+	ric: string,
+	exchange?: string,
+	productType: ProductType = 'stock'
+): Promise<Record<string, unknown>[]> {
+	const result = await apiRequest<unknown>(
+		buildUrl(`${API_ENDPOINTS.instrumentByRic}/${encodeURIComponent(ric)}`, {
+			product_type: productType,
+			exchange,
+		})
+	);
 	return extractInstruments(result);
 }
 
-export async function getRules(exchange: string, productType: string = 'stock'): Promise<any> {
-	const endpoint = productType === 'stock'
-		? `${API_ENDPOINTS.rules}/${exchange}`
-		: productType === 'future'
-		? `${API_ENDPOINTS.rulesFuture}/${exchange}`
-		: `${API_ENDPOINTS.rulesOption}/${exchange}`;
-	
-	const url = `${API_BASE_URL}${endpoint}`;
-	const response = await fetch(url);
-	
-	if (!response.ok) {
-		throw new Error(`HTTP error! status: ${response.status}`);
-	}
-	
-	return await response.json();
+// ─── Exchanges ────────────────────────────────────────────────────────────────
+
+export async function getExchanges(productType: ProductType = 'stock'): Promise<Exchange[]> {
+	const result = await apiRequest<string[] | unknown>(
+		buildUrl(API_ENDPOINTS.exchanges, { product_type: productType })
+	);
+	if (!Array.isArray(result)) return [];
+	return (result as string[]).map((item) => ({ value: item, label: item }));
 }
 
-export async function getRulesYaml(
-	productType: string,
-	exchange: string
-): Promise<string> {
-	const url = `${API_BASE_URL}${API_ENDPOINTS.rulesYaml}/${productType}/${exchange}`;
-	const response = await fetch(url);
-	
-	if (!response.ok) {
-		throw new Error(`HTTP error! status: ${response.status}`);
-	}
-	
-	return await response.text();
+// ─── Rules ────────────────────────────────────────────────────────────────────
+
+const RULES_ENDPOINT: Record<ProductType, string> = {
+	stock: API_ENDPOINTS.rules,
+	future: API_ENDPOINTS.rulesFuture,
+	option: API_ENDPOINTS.rulesOption,
+	multileg: API_ENDPOINTS.rulesMultileg,
+};
+
+export function getRules(exchange: string, productType: ProductType = 'stock'): Promise<unknown> {
+	return apiRequest<unknown>(`${RULES_ENDPOINT[productType]}/${exchange}`);
 }
 
-export async function getCombinedRuleDetailsYaml(
+export function getRulesYaml(productType: string, exchange: string): Promise<string> {
+	return apiRequestText(`${API_ENDPOINTS.rulesYaml}/${productType}/${exchange}`);
+}
+
+export function getCombinedRuleDetailsYaml(
 	productType: string,
 	exchange: string,
 	ruleName?: string
 ): Promise<string> {
-	let url = `${API_BASE_URL}${API_ENDPOINTS.combinedRuleDetailsYaml}/${productType}/${exchange}`;
-	if (ruleName) {
-		url += `?rule_name=${encodeURIComponent(ruleName)}`;
-	}
-	const response = await fetch(url);
-	
-	if (!response.ok) {
-		throw new Error(`HTTP error! status: ${response.status}`);
-	}
-	
-	return await response.text();
-}
-
-export async function validateByMasterId(
-	masterId: string,
-	ruleName: string
-): Promise<ValidationResponse> {
-	const url = `${API_BASE_URL}${API_ENDPOINTS.validateByMasterId}/${masterId}/${ruleName}`;
-	const response = await fetch(url);
-	
-	if (!response.ok) {
-		throw new Error(`HTTP error! status: ${response.status}`);
-	}
-	
-	return await response.json();
-}
-
-export async function getExchanges(productType: string = 'stock'): Promise<Exchange[]> {
-	const url = `${API_BASE_URL}${API_ENDPOINTS.exchanges}?product_type=${productType}`;
-	const response = await fetch(url);
-	
-	if (!response.ok) {
-		throw new Error(`HTTP error! status: ${response.status}`);
-	}
-	
-	const result = await response.json();
-	
-	// API now returns simple array of strings: ["XHKG", "XNSE", ...]
-	if (Array.isArray(result)) {
-		return result.map((item: string) => ({
-			value: item,
-			label: item
-		}));
-	}
-	
-	return [];
+	return apiRequestText(
+		buildUrl(`${API_ENDPOINTS.combinedRuleDetailsYaml}/${productType}/${exchange}`, {
+			rule_name: ruleName,
+		})
+	);
 }
 
 export async function getCombinedRuleNames(
-	instrumentType: string,
+	productType: string,
 	exchange: string
 ): Promise<string[]> {
-	const url = `${API_BASE_URL}${API_ENDPOINTS.combinedRuleNames}/${instrumentType}/${exchange}`;
-	const response = await fetch(url);
-	
-	if (!response.ok) {
-		throw new Error(`HTTP error! status: ${response.status}`);
-	}
-	
-	const result = await response.json();
-	
-	// Handle the API response format: { all_combined_rule_names: [...], ... } or { combined_rule_names: [...], ... }
-	if (result && Array.isArray(result.all_combined_rule_names)) {
-		return result.all_combined_rule_names;
-	}
-	if (result && Array.isArray(result.combined_rule_names)) {
-		return result.combined_rule_names;
-	}
-	
-	// Fallback for other formats
-	if (Array.isArray(result)) {
-		return result.map((item: any) => typeof item === 'string' ? item : item.name || item.ruleName || String(item));
-	} else if (result && Array.isArray(result.ruleNames)) {
-		return result.ruleNames;
-	} else if (result && Array.isArray(result.rules)) {
-		return result.rules.map((item: any) => typeof item === 'string' ? item : item.name || item.ruleName || String(item));
-	} else if (result && typeof result === 'object') {
-		// If it's an object, try to extract rule names
-		if (result.names && Array.isArray(result.names)) {
-			return result.names;
-		}
-		return Object.keys(result).filter(key => 
-			result[key] && typeof result[key] === 'string'
-		);
-	}
-	
-	return [];
-}
-
-export async function getCombinedRuleDetails(
-	instrumentType: string,
-	exchange: string,
-	ruleName: string
-): Promise<any> {
-	// Use the combined-rules-details endpoint
-	const url = `${API_BASE_URL}${API_ENDPOINTS.combinedRuleDetails}/${instrumentType}/${exchange}`;
-	const response = await fetch(url);
-	
-	if (!response.ok) {
-		throw new Error(`HTTP error! status: ${response.status}`);
-	}
-	
-	const combinedRuleData = await response.json();
-	
-	// The API returns: { product_type, exchange, combined_rules: [...], count }
-	// Each combined_rule has: { name, definition, includes, resolved_rules: [...], ... }
-	
-	if (!combinedRuleData || !Array.isArray(combinedRuleData.combined_rules)) {
-		return [];
-	}
-	
-	// Find the specific combined rule by name
-	const specificRule = combinedRuleData.combined_rules.find(
-		(rule: any) => rule.name === ruleName || rule.ruleName === ruleName
+	const result = await apiRequest<{ all_combined_rule_names?: string[] }>(
+		`${API_ENDPOINTS.combinedRuleNames}/${productType}/${exchange}`
 	);
-	
-	if (!specificRule) {
-		return [];
-	}
-	
-	// Extract resolved_rules from the combined rule
-	// resolved_rules contains the actual rule definitions that make up the combined rule
-	if (Array.isArray(specificRule.resolved_rules) && specificRule.resolved_rules.length > 0) {
-		return specificRule.resolved_rules;
-	}
-	
-	// If resolved_rules is empty or not an array, log for debugging
-	if (!Array.isArray(specificRule.resolved_rules)) {
-		console.warn('resolved_rules is not an array:', specificRule.resolved_rules);
-	}
-	
-	// Fallback: if resolved_rules is not available, try to use includes or other fields
-	if (Array.isArray(specificRule.includes)) {
-		// If we have includes (rule names), fetch the actual rules
-		const allRules = await getRules(exchange, instrumentType);
-		
-		// Convert allRules to an array format
-		let allRulesArray: any[] = [];
-		if (Array.isArray(allRules)) {
-			allRulesArray = allRules;
-		} else if (allRules && typeof allRules === 'object') {
-			if (Array.isArray(allRules.rules)) {
-				allRulesArray = allRules.rules;
-			} else if (Array.isArray(allRules.data)) {
-				allRulesArray = allRules.data;
-			} else {
-				allRulesArray = [allRules];
-			}
-		}
-		
-		// Filter rules to only include those that are part of the combined rule
-		const filteredRules = allRulesArray.filter((rule: any) => {
-			const ruleNameToMatch = rule.name || rule.ruleName || rule.rule_name || String(rule);
-			return specificRule.includes.some((name: string) => 
-				name.toLowerCase() === ruleNameToMatch.toLowerCase()
-			);
-		});
-		
-		return filteredRules;
-	}
-	
-	// Last resort: return the combined rule object itself
-	return [specificRule];
+	return result.all_combined_rule_names ?? [];
 }
 
-// Validation Analytics API functions
-
-export interface GlobalViewData {
-	Region: string;
-	TotalRuns: number;
-	SuccessfulRuns: number;
-	FailedRuns: number;
-	SuccessRate: number;
+/**
+ * Returns the full combined-rules payload for a product type / exchange.
+ * Callers that need a single rule should filter on `combined_rules` by name.
+ */
+export function getCombinedRuleDetails(
+	productType: string,
+	exchange: string
+): Promise<CombinedRulesResponse> {
+	return apiRequest<CombinedRulesResponse>(
+		`${API_ENDPOINTS.combinedRuleDetails}/${productType}/${exchange}`
+	);
 }
 
-export interface HeatmapData {
-	Region: string;
-	ProductType: string;
-	TotalRuns: number;
-	SuccessfulRuns: number;
-	SuccessRate: number;
+// ─── Validation analytics ─────────────────────────────────────────────────────
+
+export function getGlobalView(days = 7): Promise<ChartResponse<GlobalViewData>> {
+	return apiRequest<ChartResponse<GlobalViewData>>(
+		buildUrl(API_ENDPOINTS.validationGlobalView, { days })
+	);
 }
 
-export interface TreemapData {
-	Region: string;
-	ProductType: string;
-	Exchange: string;
-	TotalRuns: number;
-	SuccessRate: number;
+export function getHeatmap(days = 7): Promise<ChartResponse<HeatmapData>> {
+	return apiRequest<ChartResponse<HeatmapData>>(
+		buildUrl(API_ENDPOINTS.validationHeatmap, { days })
+	);
 }
 
-export interface RuleFailureData {
-	RuleName: string;
-	TotalRuns: number;
-	FailureCount: number;
-	FailureRate: number;
+export function getTreemap(days = 7): Promise<ChartResponse<TreemapData>> {
+	return apiRequest<ChartResponse<TreemapData>>(
+		buildUrl(API_ENDPOINTS.validationTreemap, { days })
+	);
 }
 
-export interface RuleFailureByRegionData {
-	Region: string;
-	RuleName: string;
-	TotalRuns: number;
-	FailureCount: number;
-	FailureRate: number;
+export function getRuleFailures(days = 7, limit = 20): Promise<ChartResponse<RuleFailureData>> {
+	return apiRequest<ChartResponse<RuleFailureData>>(
+		buildUrl(API_ENDPOINTS.validationRuleFailures, { days, limit })
+	);
 }
 
-export interface ExpectationFailureByRegionData {
-	Region: string;
-	ProductType: string;
-	ColumnName: string;
-	ExpectationType: string;
-	TotalRuns: number;
-	FailureCount: number;
-	FailureRate: number;
-}
-
-export interface CombinedRuleData {
-	TradableCount: number;
-	NotTradableCount: number;
-	TotalCount: number;
-	TradableRate: number;
-	FailureReasons: Array<{
-		ColumnName: string;
-		ExpectationType: string;
-		FailureCount: number;
-	}>;
-	chart_type: string;
-	chart_title: string;
-}
-
-export async function getGlobalView(days: number = 7): Promise<{ data: GlobalViewData[]; chart_type: string; chart_title: string }> {
-	const url = `${API_BASE_URL}${API_ENDPOINTS.validationGlobalView}?days=${days}`;
-	const response = await fetch(url);
-	
-	if (!response.ok) {
-		throw new Error(`HTTP error! status: ${response.status}`);
-	}
-	
-	return await response.json();
-}
-
-export async function getHeatmap(days: number = 7): Promise<{ data: HeatmapData[]; chart_type: string; chart_title: string }> {
-	const url = `${API_BASE_URL}${API_ENDPOINTS.validationHeatmap}?days=${days}`;
-	const response = await fetch(url);
-	
-	if (!response.ok) {
-		throw new Error(`HTTP error! status: ${response.status}`);
-	}
-	
-	return await response.json();
-}
-
-export async function getTreemap(days: number = 7): Promise<{ data: TreemapData[]; chart_type: string; chart_title: string }> {
-	const url = `${API_BASE_URL}${API_ENDPOINTS.validationTreemap}?days=${days}`;
-	const response = await fetch(url);
-	
-	if (!response.ok) {
-		throw new Error(`HTTP error! status: ${response.status}`);
-	}
-	
-	return await response.json();
-}
-
-export async function getRuleFailures(days: number = 7, limit: number = 20): Promise<{ data: RuleFailureData[]; chart_type: string; chart_title: string }> {
-	const url = `${API_BASE_URL}${API_ENDPOINTS.validationRuleFailures}?days=${days}&limit=${limit}`;
-	const response = await fetch(url);
-	
-	if (!response.ok) {
-		throw new Error(`HTTP error! status: ${response.status}`);
-	}
-	
-	return await response.json();
-}
-
-export async function getRuleFailuresByRegion(
-	days: number = 7, 
-	limit: number = 20, 
+export function getRuleFailuresByRegion(
+	days = 7,
+	limit = 20,
 	productType?: string
-): Promise<{ data: RuleFailureByRegionData[]; chart_type: string; chart_title: string }> {
-	let url = `${API_BASE_URL}${API_ENDPOINTS.validationRuleFailuresByRegion}?days=${days}&limit=${limit}`;
-	if (productType) {
-		url += `&product_type=${productType}`;
-	}
-	const response = await fetch(url);
-	
-	if (!response.ok) {
-		throw new Error(`HTTP error! status: ${response.status}`);
-	}
-	
-	return await response.json();
+): Promise<ChartResponse<RuleFailureByRegionData>> {
+	return apiRequest<ChartResponse<RuleFailureByRegionData>>(
+		buildUrl(API_ENDPOINTS.validationRuleFailuresByRegion, {
+			days,
+			limit,
+			product_type: productType,
+		})
+	);
 }
 
-export async function getExpectationFailuresByRegion(
-	days: number = 7, 
-	limit: number = 20, 
+export function getExpectationFailuresByRegion(
+	days = 7,
+	limit = 20,
 	productType?: string
-): Promise<{ data: ExpectationFailureByRegionData[]; chart_type: string; chart_title: string }> {
-	let url = `${API_BASE_URL}${API_ENDPOINTS.validationExpectationFailuresByRegion}?days=${days}&limit=${limit}`;
-	if (productType) {
-		url += `&product_type=${productType}`;
-	}
-	const response = await fetch(url);
-	
-	if (!response.ok) {
-		throw new Error(`HTTP error! status: ${response.status}`);
-	}
-	
-	return await response.json();
+): Promise<ChartResponse<ExpectationFailureByRegionData>> {
+	return apiRequest<ChartResponse<ExpectationFailureByRegionData>>(
+		buildUrl(API_ENDPOINTS.validationExpectationFailuresByRegion, {
+			days,
+			limit,
+			product_type: productType,
+		})
+	);
 }
 
-export async function getCombinedRuleStats(combinedRuleName: string, days: number = 7): Promise<CombinedRuleData> {
-	const url = `${API_BASE_URL}${API_ENDPOINTS.validationCombinedRule}/${encodeURIComponent(combinedRuleName)}?days=${days}`;
-	const response = await fetch(url);
-	
-	if (!response.ok) {
-		throw new Error(`HTTP error! status: ${response.status}`);
-	}
-	
-	return await response.json();
+export function getCombinedRuleStats(
+	combinedRuleName: string,
+	days = 7
+): Promise<CombinedRuleData> {
+	return apiRequest<CombinedRuleData>(
+		buildUrl(
+			`${API_ENDPOINTS.validationCombinedRule}/${encodeURIComponent(combinedRuleName)}`,
+			{ days }
+		)
+	);
 }
 
-export interface ExchangeValidationResult {
-	RunId: number;
-	RunTimestamp: string;
-	Region: string;
-	ProductType: string;
-	Exchange: string;
-	Success: boolean;
-	TotalExpectations: number;
-	SuccessfulExpectations: number;
-	FailedExpectations: number;
-	RulesApplied: string;
-	CustomRuleNames: string | null;
-	ApiUrl: string;
-	ExecutionDurationMs: number;
-	expectation_results: Array<{
-		ResultId: number;
-		ColumnName: string;
-		ExpectationType: string;
-		Success: boolean;
-		ElementCount: number;
-		UnexpectedCount: number;
-		UnexpectedPercent: number;
-		MissingCount: number;
-		MissingPercent: number;
-		ResultDetails: string | null;
-	}>;
-	rules_applied: Array<{
-		RuleName: string;
-		RuleType: string;
-		RuleLevel: string;
-		RuleSource: string;
-	}>;
-}
-
-/** Lightweight summary for a single exchange run that passed all expectations. */
-export interface PassedExchangeRun {
-	RunId: number;
-	RunTimestamp: string;
-	Exchange: string;
-	ProductType: string;
-	TotalExpectations: number;
-	SuccessfulExpectations: number;
-	ExecutionDurationMs: number;
-	RulesApplied: number;
-}
-
-export interface ExchangeValidationResponse {
-	exchange: string;
-	days: number;
-	total_runs: number;
-	/** Failed runs — full detail including expectation results and rules applied. */
-	runs: ExchangeValidationResult[];
-	/** Passed runs — lightweight summary only, no sub-queries. */
-	passed_runs: PassedExchangeRun[];
-}
-
-export async function getExchangeValidationResults(
+export function getExchangeValidationResults(
 	exchange: string,
-	days: number = 7,
+	days = 7,
 	limit?: number,
 	signal?: AbortSignal
 ): Promise<ExchangeValidationResponse> {
-	let url = `${API_BASE_URL}${API_ENDPOINTS.validationExchangeResults}/${encodeURIComponent(exchange)}?days=${days}`;
-	if (limit) {
-		url += `&limit=${limit}`;
-	}
-	
-	const fetchOptions: RequestInit = {};
-	if (signal) {
-		fetchOptions.signal = signal;
-	}
-	
-	const response = await fetch(url, fetchOptions);
-	
-	if (!response.ok) {
-		throw new Error(`HTTP error! status: ${response.status}`);
-	}
-	
-	return await response.json();
+	return apiRequest<ExchangeValidationResponse>(
+		buildUrl(
+			`${API_ENDPOINTS.validationExchangeResults}/${encodeURIComponent(exchange)}`,
+			{ days, limit }
+		),
+		{ signal }
+	);
 }
 
-export interface RegionalTrendData {
-	Date: string;
-	RunId?: number;
-	Exchange?: string;
-	ProductType?: string;
-	Success?: number;
-	FailedExpectations?: number;
-	TotalExpectations?: number;
-	SuccessfulExpectations?: number;
-	TotalRuns?: number;
-	SuccessfulRuns?: number;
-	FailedRuns: number;
-	SuccessRate: number;
+export function getRegionalTrends(
+	days = 30,
+	productType?: string
+): Promise<RegionalTrendResponse> {
+	return apiRequest<RegionalTrendResponse>(
+		buildUrl(API_ENDPOINTS.validationRegionalTrends, { days, product_type: productType })
+	);
 }
 
-export interface RegionalTrendResponse {
-	data: Record<string, RegionalTrendData[]>; // Key is region name (e.g., "APAC", "US", "EMEA")
-	chart_type: string;
-	chart_title: string;
-}
-
-export async function getRegionalTrends(days: number = 30, productType?: string): Promise<RegionalTrendResponse> {
-	let url = `${API_BASE_URL}${API_ENDPOINTS.validationRegionalTrends}?days=${days}`;
-	if (productType) {
-		url += `&product_type=${productType}`;
-	}
-	const response = await fetch(url);
-	
-	if (!response.ok) {
-		throw new Error(`HTTP error! status: ${response.status}`);
-	}
-	
-	return await response.json();
-}
-
-export interface RunSession {
-	/** ISO-8601 5-minute bucket start time */
-	session_time: string;
-	total_runs: number;
-	passed_runs: number;
-	failed_runs: number;
-}
-
-export interface RunSessionsResponse {
-	region: string;
-	date: string;
-	sessions: RunSession[];
-}
-
-/**
- * Lightweight call that returns distinct run batches (5-min windows) for a
- * region/date. Use this to populate the session picker before loading full runs.
- */
-export async function getRunSessionsByRegionDate(
+export function getRunSessionsByRegionDate(
 	region: string,
 	date: string,
-	days: number = 90
+	days = 90
 ): Promise<RunSessionsResponse> {
-	const url = `${API_BASE_URL}${API_ENDPOINTS.validationRunSessions}/${encodeURIComponent(region)}/${encodeURIComponent(date)}?days=${days}`;
-	const response = await fetch(url);
-	if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-	return await response.json();
+	return apiRequest<RunSessionsResponse>(
+		buildUrl(
+			`${API_ENDPOINTS.validationRunSessions}/${encodeURIComponent(region)}/${encodeURIComponent(date)}`,
+			{ days }
+		)
+	);
 }
 
-export async function getValidationResultsByRegionDate(
+export function getValidationResultsByRegionDate(
 	region: string,
 	date: string,
-	days: number = 7,
+	days = 7,
 	limit?: number,
 	sessionTime?: string
 ): Promise<ExchangeValidationResponse> {
-	let url = `${API_BASE_URL}${API_ENDPOINTS.validationRegionDateResults}/${encodeURIComponent(region)}/${encodeURIComponent(date)}?days=${days}`;
-	if (limit)       url += `&limit=${limit}`;
-	if (sessionTime) url += `&session_time=${encodeURIComponent(sessionTime)}`;
-
-	const response = await fetch(url);
-	if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-	return await response.json();
+	return apiRequest<ExchangeValidationResponse>(
+		buildUrl(
+			`${API_ENDPOINTS.validationRegionDateResults}/${encodeURIComponent(region)}/${encodeURIComponent(date)}`,
+			{ days, limit, session_time: sessionTime }
+		)
+	);
 }
 
 /**
- * Returns the URL to download the consolidated Excel failure report
- * for a given region and date. Navigate to this URL to trigger the download.
+ * Returns the URL to download the consolidated Excel failure report.
+ * Navigate to this URL directly to trigger the browser download.
  */
-export function getExcelReportUrl(region: string, date: string, days: number = 90): string {
-	return `${API_BASE_URL}${API_ENDPOINTS.excelReport}/${encodeURIComponent(region)}/${encodeURIComponent(date)}?days=${days}`;
+export function getExcelReportUrl(region: string, date: string, days = 90): string {
+	return (
+		API_BASE_URL +
+		buildUrl(
+			`${API_ENDPOINTS.excelReport}/${encodeURIComponent(region)}/${encodeURIComponent(date)}`,
+			{ days }
+		)
+	);
 }
 
+// Re-export types that consumers may need alongside the API functions.
+export type { Rule, CombinedRulesResponse };

@@ -289,9 +289,9 @@ def get_validation_results_by_exchange(exchange):
         if not exchange:
             return jsonify({"error": "Exchange parameter is required"}), 400
         
-        days = request.args.get('days', 7, type=int)
-        limit = request.args.get('limit', None, type=int)
-        
+        days = _get_int_param('days', 7)
+        limit = request.args.get('limit', type=int)
+
         service = get_analytics_service()
         results = service.get_validation_results_by_exchange(
             exchange=exchange.upper(),
@@ -428,9 +428,9 @@ def get_validation_results_by_region_date(region, date):
         if not date:
             return jsonify({"error": "Date parameter is required"}), 400
 
-        days         = request.args.get('days', 7, type=int)
-        limit        = request.args.get('limit', None, type=int)
-        session_time = request.args.get('session_time', None, type=str)
+        days         = _get_int_param('days', 7)
+        limit        = request.args.get('limit', type=int)
+        session_time = request.args.get('session_time', type=str)
 
         service = get_analytics_service()
         results = service.get_validation_results_by_region_date(

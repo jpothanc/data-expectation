@@ -1,6 +1,6 @@
 <script lang="ts">
-	import BarChart from '../BarChart.svelte';
-	import ChartCard from '../ChartCard.svelte';
+	import BarChart from '../charts/BarChart.svelte';
+	import ChartCard from '../charts/ChartCard.svelte';
 	import type { RuleFailureData, CombinedRuleData } from '$lib/services/api';
 
 	interface Props {

@@ -1,6 +1,6 @@
 <script lang="ts">
-	import TreemapChart from '../TreemapChart.svelte';
-	import ChartCard from '../ChartCard.svelte';
+	import TreemapChart from '../charts/TreemapChart.svelte';
+	import ChartCard from '../charts/ChartCard.svelte';
 	import type { TreemapData } from '$lib/services/api';
 
 	interface Props {

@@ -8,13 +8,13 @@
 		type RuleFailureByRegionData,
 		type CombinedRuleData
 	} from '$lib/services/api';
-	import BarChart from '$lib/components/BarChart.svelte';
-	import GroupedBarChart from '$lib/components/GroupedBarChart.svelte';
-	import ChartCard from '$lib/components/ChartCard.svelte';
-	import PageControls from '$lib/components/PageControls.svelte';
-	import LoadingState from '$lib/components/LoadingState.svelte';
-	import ErrorBanner from '$lib/components/ErrorBanner.svelte';
-	import EmptyState from '$lib/components/EmptyState.svelte';
+	import BarChart from '$lib/components/charts/BarChart.svelte';
+	import GroupedBarChart from '$lib/components/charts/GroupedBarChart.svelte';
+	import ChartCard from '$lib/components/charts/ChartCard.svelte';
+	import PageControls from '$lib/components/ui/PageControls.svelte';
+	import LoadingState from '$lib/components/ui/LoadingState.svelte';
+	import ErrorBanner from '$lib/components/ui/ErrorBanner.svelte';
+	import EmptyState from '$lib/components/ui/EmptyState.svelte';
 
 	let loading = $state(true);
 	let error = $state<string | null>(null);

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { formatHeaderName } from '../utils/formatters';
+	import { formatHeaderName } from '../../utils/formatters';
 
 	interface Props {
 		headers: string[];

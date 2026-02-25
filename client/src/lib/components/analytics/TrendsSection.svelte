@@ -1,6 +1,6 @@
 <script lang="ts">
-	import LineChart from '../LineChart.svelte';
-	import ChartCard from '../ChartCard.svelte';
+	import LineChart from '../charts/LineChart.svelte';
+	import ChartCard from '../charts/ChartCard.svelte';
 	import type { RegionalTrendResponse } from '$lib/services/api';
 
 	interface Props {

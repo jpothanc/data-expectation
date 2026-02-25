@@ -5,7 +5,7 @@
 		getExcelReportUrl
 	} from '$lib/services/api';
 	import type { ExchangeValidationResult, PassedExchangeRun, RunSession } from '$lib/services/api';
-	import HomeButton from '$lib/components/HomeButton.svelte';
+	import HomeButton from '$lib/components/ui/HomeButton.svelte';
 	import RunSessionPicker from '$lib/components/reports/RunSessionPicker.svelte';
 
 	const REGIONS = ['APAC', 'EMEA', 'US'];

@@ -1,10 +1,10 @@
 <script lang="ts">
-	import { getRules, getRulesYaml, getCombinedRuleNames, getCombinedRuleDetails, getCombinedRuleDetailsYaml } from '../services/api';
-	import { DEFAULT_EXCHANGE } from '../constants';
-	import { exchangesStore, setupExchangeInit } from '../stores/exchanges.svelte';
-	import { convertToTableData } from '../utils/table';
-	import DataTable from './DataTable.svelte';
-	import Select from './Select.svelte';
+	import { getRules, getRulesYaml, getCombinedRuleNames, getCombinedRuleDetails, getCombinedRuleDetailsYaml } from '../../services/api';
+	import { DEFAULT_EXCHANGE } from '../../constants';
+	import { exchangesStore, setupExchangeInit } from '../../stores/exchanges.svelte';
+	import { convertToTableData } from '../../utils/table';
+	import DataTable from '../ui/DataTable.svelte';
+	import Select from '../ui/Select.svelte';
 
 	interface Props {
 		productType?: 'stock' | 'future' | 'option' | 'multileg';
@@ -21,7 +21,7 @@
 	let filterText = $state<string>('');
 	let loading = $state(false);
 	let error = $state<string | null>(null);
-	let rulesData = $state<any | null>(null);
+	let rulesData = $state<unknown | null>(null);
 	let yamlData = $state<string | null>(null);
 	let yamlCopied = $state(false);
 	const INSTRUMENT_TYPE = productType;
@@ -96,7 +96,9 @@
 				if (viewMode === 'yaml') {
 					yamlData = await getCombinedRuleDetailsYaml(INSTRUMENT_TYPE, selectedExchange, selectedCombinedRule);
 				} else {
-					rulesData = await getCombinedRuleDetails(INSTRUMENT_TYPE, selectedExchange, selectedCombinedRule);
+					const response = await getCombinedRuleDetails(INSTRUMENT_TYPE, selectedExchange);
+					const match = response.combined_rules.find((r) => r.name === selectedCombinedRule);
+					rulesData = match?.resolved_rules ?? [];
 				}
 			} else {
 				// Regular rules - fetch based on view mode
@@ -130,39 +132,31 @@
 			return { data: [], headers: [] };
 		}
 
-		let rawData: any[] = [];
+		let rawData: Record<string, unknown>[] = [];
 
-		// Handle different response structures
 		if (Array.isArray(rulesData)) {
-			rawData = rulesData;
+			rawData = rulesData as Record<string, unknown>[];
 		} else if (rulesData && typeof rulesData === 'object') {
-			// If it's an object, try to find an array property
-			if (Array.isArray(rulesData.rules)) {
-				rawData = rulesData.rules;
-			} else if (Array.isArray(rulesData.data)) {
-				rawData = rulesData.data;
+			const obj = rulesData as Record<string, unknown>;
+			if (Array.isArray(obj['rules'])) {
+				rawData = obj['rules'] as Record<string, unknown>[];
+			} else if (Array.isArray(obj['data'])) {
+				rawData = obj['data'] as Record<string, unknown>[];
 			} else {
-				// Convert single object to array
-				rawData = [rulesData];
+				rawData = [obj];
 			}
 		}
 
 		// Filter by text if provided
 		if (filterText && filterText.trim() !== '') {
 			const searchText = filterText.toLowerCase().trim();
-			rawData = rawData.filter(item => {
-				if (!item || typeof item !== 'object') {
-					return false;
-				}
-				// Search across all values in the row
-				return Object.values(item).some(value => {
-					if (value === null || value === undefined) {
-						return false;
-					}
-					const stringValue = String(value).toLowerCase();
-					return stringValue.includes(searchText);
-				});
-			});
+			rawData = rawData.filter((item) =>
+				item !== null &&
+				typeof item === 'object' &&
+				Object.values(item).some(
+					(value) => value != null && String(value).toLowerCase().includes(searchText)
+				)
+			);
 		}
 
 		return convertToTableData(rawData);

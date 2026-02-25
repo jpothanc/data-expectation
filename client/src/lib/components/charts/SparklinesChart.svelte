@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onDestroy } from 'svelte';
-	import type { RegionalTrendResponse } from '../services/api';
+	import type { RegionalTrendResponse } from '../../services/api';
 
 	interface Props {
 		data: RegionalTrendResponse['data'];

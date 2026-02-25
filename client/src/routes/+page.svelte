@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import ThemeSelector from '$lib/components/ThemeSelector.svelte';
+	import ThemeSelector from '$lib/components/ui/ThemeSelector.svelte';
 
 	function navigateTo(path: string) {
 		goto(path);
@@ -214,11 +214,11 @@
 	}
 
 	.reports-card .card-icon {
-		color: #a78bfa;
+		color: var(--color-primary-light);
 	}
 
 	.multileg-card .card-icon {
-		color: #34d399;
+		color: var(--color-primary-light);
 	}
 
 	@media (max-width: 480px) {

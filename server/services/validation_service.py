@@ -5,6 +5,7 @@ import time
 
 import pandas as pd
 from processors.processor_factory import ProcessorFactory
+from services.exceptions import ExchangeNotFoundError, ProcessorSetupError
 from services.validation_result_formatter import ValidationResultFormatter
 from services.instrument_service import InstrumentService
 from services.constants import DEFAULT_EXCHANGE_MAP
@@ -76,10 +77,7 @@ class ValidationService:
             exchange_map = self.exchange_map
         
         if exchange not in exchange_map:
-            raise ValueError(
-                f"Exchange '{exchange}' not found for product type '{product_type or self.product_type}'. "
-                f"Available: {', '.join(exchange_map.keys())}"
-            )
+            raise ExchangeNotFoundError(exchange, list(exchange_map.keys()))
         return exchange_map[exchange]
     
     def validate_exchange(self, exchange, custom_rule_names=None, custom_rules=None, product_type='stock'):
@@ -104,10 +102,10 @@ class ValidationService:
             data_source = self._get_data_source(exchange, product_type=product_type)
             logger.debug("Data source for %s (%s): %s | exchange_map keys: %s",
                          exchange, product_type, data_source, list(self.exchange_map.keys()))
-        except ValueError as e:
+        except ExchangeNotFoundError:
             logger.error("Exchange %s not found in exchange_map for product_type %s. Available: %s",
                          exchange, product_type, list(self.exchange_map.keys()))
-            raise ValueError(f"Exchange validation failed: {str(e)}")
+            raise  # preserve the typed exception so the controller can react precisely
 
         try:
             processor = ProcessorFactory.create(
@@ -117,19 +115,14 @@ class ValidationService:
             )
         except IOError as e:
             logger.error("IOError creating processor for %s: %s", product_type, e)
-            raise IOError(
-                f"File access error creating processor for {product_type}: {e}. "
-                "This may be due to a closed file handle or file locking issue."
-            )
+            raise ProcessorSetupError(product_type, e)
         except Exception as e:
-            # Re-raise OSError / closed-file errors as IOError so callers can distinguish
-            # them from logical ValueError (exchange not found, etc.)
             msg = str(e)
             if "i/o operation on closed file" in msg.lower() or "closed file" in msg.lower():
                 logger.error("GE closed-file error creating processor for %s: %s", product_type, e)
-                raise IOError(f"Failed to create processor for {product_type}: {e}")
-            logger.error("Error creating processor for %s: %s", product_type, e)
-            raise ValueError(f"Failed to create processor for {product_type}: {e}")
+            else:
+                logger.error("Error creating processor for %s: %s", product_type, e)
+            raise ProcessorSetupError(product_type, e)
 
         t0 = time.perf_counter()
         try:

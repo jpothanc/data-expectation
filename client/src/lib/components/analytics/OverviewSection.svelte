@@ -1,9 +1,9 @@
 <script lang="ts">
-	import StackedBarChart from '../StackedBarChart.svelte';
-	import ProductHeatmapChart from '../ProductHeatmapChart.svelte';
-	import DataTable from '../DataTable.svelte';
-	import ChartCard from '../ChartCard.svelte';
-	import ExpectationFailureModal from '../ExpectationFailureModal.svelte';
+	import StackedBarChart from '../charts/StackedBarChart.svelte';
+	import ProductHeatmapChart from '../charts/ProductHeatmapChart.svelte';
+	import DataTable from '../ui/DataTable.svelte';
+	import ChartCard from '../charts/ChartCard.svelte';
+	import ExpectationFailureModal from '../modals/ExpectationFailureModal.svelte';
 	import type { GlobalViewData, HeatmapData, ExpectationFailureByRegionData } from '$lib/services/api';
 
 	interface Props {

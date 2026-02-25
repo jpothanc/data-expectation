@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { ExchangeValidationResult } from '../services/api';
+	import type { ExchangeValidationResult } from '../../services/api';
 
 	interface Props {
 		isOpen: boolean;

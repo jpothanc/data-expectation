@@ -2,15 +2,15 @@
 	import { getRegionalTrends, type RegionalTrendResponse } from '$lib/services/api';
 	import { withTimeout } from '$lib/utils/promise';
 	import { API_TIMEOUTS } from '$lib/constants/timeouts';
-	import PageControls from '$lib/components/PageControls.svelte';
-	import LoadingState from '$lib/components/LoadingState.svelte';
-	import ErrorBanner from '$lib/components/ErrorBanner.svelte';
-	import EmptyState from '$lib/components/EmptyState.svelte';
-	import LineChart from '$lib/components/LineChart.svelte';
-	import HeatmapChart from '$lib/components/HeatmapChart.svelte';
-	import SparklinesChart from '$lib/components/SparklinesChart.svelte';
-	import StackedAreaChart from '$lib/components/StackedAreaChart.svelte';
-	import ChartCard from '$lib/components/ChartCard.svelte';
+	import PageControls from '$lib/components/ui/PageControls.svelte';
+	import LoadingState from '$lib/components/ui/LoadingState.svelte';
+	import ErrorBanner from '$lib/components/ui/ErrorBanner.svelte';
+	import EmptyState from '$lib/components/ui/EmptyState.svelte';
+	import LineChart from '$lib/components/charts/LineChart.svelte';
+	import HeatmapChart from '$lib/components/charts/HeatmapChart.svelte';
+	import SparklinesChart from '$lib/components/charts/SparklinesChart.svelte';
+	import StackedAreaChart from '$lib/components/charts/StackedAreaChart.svelte';
+	import ChartCard from '$lib/components/charts/ChartCard.svelte';
 
 	let loading = $state(true);
 	let error = $state<string | null>(null);

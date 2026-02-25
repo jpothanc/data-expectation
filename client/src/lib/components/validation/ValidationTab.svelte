@@ -1,19 +1,19 @@
 <script lang="ts">
-	import { validateStocks, validateFutures, validateOptions, validateMultileg, validateCustom, validateByMasterId, getCombinedRuleNames, validateCombinedRule } from '../services/api';
-	import { DEFAULT_EXCHANGE } from '../constants';
-	import { exchangesStore, setupExchangeInit } from '../stores/exchanges.svelte';
-	import type { ValidationResponse, ValidationResult } from '../types';
+	import { validateStocks, validateFutures, validateOptions, validateMultileg, validateCustom, validateByMasterId, getCombinedRuleNames, validateCombinedRule } from '../../services/api';
+	import { DEFAULT_EXCHANGE } from '../../constants';
+	import { exchangesStore, setupExchangeInit } from '../../stores/exchanges.svelte';
+	import type { ValidationResponse, ValidationResult } from '../../types';
 	import {
 		filterValidationResults,
 		transformValidationResultsToTableData,
 		formatHeaderName
-	} from '../utils/index';
-	import { parseResultObject } from '../utils/validation';
-	import DataTable from './DataTable.svelte';
-	import SummaryCard from './SummaryCard.svelte';
-	import Select from './Select.svelte';
-	import PartialDataModal from './PartialDataModal.svelte';
-	import FailedInstrumentsModal from './reports/FailedInstrumentsModal.svelte';
+	} from '../../utils/index';
+	import { parseResultObject } from '../../utils/validation';
+	import DataTable from '../ui/DataTable.svelte';
+	import SummaryCard from '../ui/SummaryCard.svelte';
+	import Select from '../ui/Select.svelte';
+	import PartialDataModal from '../modals/PartialDataModal.svelte';
+	import FailedInstrumentsModal from '../reports/FailedInstrumentsModal.svelte';
 
 	interface Props {
 		initialExchange?: string | null;

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import RefreshButton from './RefreshButton.svelte';
-	import { PERIOD_OPTIONS, type PeriodOption } from '../constants/periods';
+	import { PERIOD_OPTIONS, type PeriodOption } from '../../constants/periods';
 
 	interface Props {
 		days: number;

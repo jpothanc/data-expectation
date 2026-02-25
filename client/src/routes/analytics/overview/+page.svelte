@@ -8,10 +8,10 @@
 		type HeatmapData,
 		type ExpectationFailureByRegionData
 	} from '$lib/services/api';
-	import OverviewSection from '$lib/components/dashboard/OverviewSection.svelte';
-	import PageControls from '$lib/components/PageControls.svelte';
-	import LoadingState from '$lib/components/LoadingState.svelte';
-	import ErrorBanner from '$lib/components/ErrorBanner.svelte';
+	import OverviewSection from '$lib/components/analytics/OverviewSection.svelte';
+	import PageControls from '$lib/components/ui/PageControls.svelte';
+	import LoadingState from '$lib/components/ui/LoadingState.svelte';
+	import ErrorBanner from '$lib/components/ui/ErrorBanner.svelte';
 
 	let loading = $state(true);
 	let error = $state<string | null>(null);

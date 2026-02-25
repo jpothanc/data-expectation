@@ -1,4 +1,4 @@
 <script lang="ts">
-	import ProductPage from '$lib/components/ProductPage.svelte';
+	import ProductPage from '$lib/components/validation/ProductPage.svelte';
 </script>
 <ProductPage title="MultiLeg" productType="multileg" />
