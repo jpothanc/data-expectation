@@ -132,9 +132,9 @@ def init_logging():
     from pathlib import Path
     
     config_service = ConfigService()
-    
+
     # Get logging configuration from config.json
-    log_config = config_service._config.get('logging', {})
+    log_config = config_service.get_logging_config()
     log_folder = log_config.get('log_folder', 'log')
     log_file = log_config.get('log_file', 'data-ex-api.log')
     log_level = log_config.get('level', 'INFO')

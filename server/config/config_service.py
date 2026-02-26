@@ -242,3 +242,16 @@ class ConfigService:
         """
         return self._config.get('regions', {})
 
+    def get_logging_config(self) -> dict:
+        """Return the logging configuration block.
+
+        Keys: ``log_folder``, ``log_file``, ``level``, ``format``.
+        Returns sensible defaults when the key is absent.
+        """
+        return self._config.get('logging', {
+            'log_folder': 'log',
+            'log_file': 'data-ex-api.log',
+            'level': 'INFO',
+            'format': '%(asctime)s - %(levelname)s - %(message)s',
+        })
+

@@ -1,16 +1,15 @@
-# Python 3.8+ compatible; tested on Python 3.12.
-# Minimum versions are set to the earliest release that supports Python 3.12.
+# Python 3.8+ compatible; tested and supported on Python 3.12.
 
 # ── Data processing ─────────────────────────────────────────────────────────
 # pandas 2.0 is the first release to officially support Python 3.12.
-# pandas 1.x uses datetime.datetime.utcnow() which is deprecated in 3.12
-# and was removed in some internal paths, causing runtime warnings / errors.
+# pandas 1.x uses datetime.datetime.utcnow() which is deprecated/broken on 3.12.
 pandas>=2.0.0
 
-# Great Expectations 0.18.12+ added Python 3.12 support.
-# Pin to the 0.18 series to keep the existing gx / gxe API intact;
-# GE 1.x is a breaking-change release that would require validator rewrites.
-great-expectations>=0.18.12,<1.0.0
+# Great Expectations 1.0 is the first release to support Python 3.12.
+# The validator layer (instrument_validator.py) already uses the GE 1.x API:
+#   context.data_sources.add_pandas(), ExpectationSuite(name=...), batch.validate(suite)
+# GE 0.18.x uses a different API and does NOT support Python 3.12.
+great-expectations>=1.0.0
 
 # ── Configuration ───────────────────────────────────────────────────────────
 pyyaml>=6.0.1
@@ -20,9 +19,12 @@ pyodbc>=5.0.0
 sqlalchemy>=2.0.0
 
 # ── Web API ─────────────────────────────────────────────────────────────────
-flask>=3.0.0
+# Flask is pinned to the 2.x series.  Flasgger (Swagger UI) depends on
+# flask.json.JSONEncoder which was removed in Flask 3.0.
+# Flask 2.3.x officially supports Python 3.12.
+flask>=2.3.2,<3.0.0
 flask-cors>=4.0.0
-flask-caching>=2.3.0
+flask-caching>=2.0.0
 flasgger>=0.9.7.1
 
 # ── Excel export ─────────────────────────────────────────────────────────────
