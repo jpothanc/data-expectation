@@ -7,7 +7,6 @@ import time
 
 from flask import Flask, jsonify, g, request
 from flask_cors import CORS
-from flask_caching import Cache
 from flasgger import Swagger
 
 from controllers.instrument_controller import instrument_api
@@ -17,9 +16,6 @@ from controllers.report_controller import report_api
 from utils import QueryExporter
 
 logger = logging.getLogger(__name__)
-
-# Initialize Flask-Caching (will be configured in create_app once config is loaded)
-cache = Cache()
 
 # Swagger configuration
 SWAGGER_CONFIG = {
@@ -71,7 +67,6 @@ def create_app():
     _cfg = ConfigService()
 
     server_cfg = _cfg.get_server_config()
-    cache_cfg = _cfg.get_cache_config()
 
     app = Flask(__name__)
     cors_origins = server_cfg.get('cors_origins', '*')
@@ -92,12 +87,6 @@ def create_app():
             )
         return response
 
-    # Initialize Flask-Caching with config-driven values
-    cache.init_app(app, config={
-        'CACHE_TYPE': cache_cfg.get('type', 'SimpleCache'),
-        'CACHE_DEFAULT_TIMEOUT': cache_cfg.get('default_timeout_seconds', 300),
-    })
-    
     # Initialize Swagger
     Swagger(app, config=SWAGGER_CONFIG, template=SWAGGER_TEMPLATE)
     
@@ -105,10 +94,6 @@ def create_app():
     app.register_blueprint(rule_api, url_prefix='/api/v1/rules/')
     app.register_blueprint(validation_api, url_prefix='/api/v1/validation/')
     app.register_blueprint(report_api, url_prefix='/api/v1/reports/')
-    
-    # Initialize cache for instrument_api blueprint (shares the same cache instance)
-    from controllers.instrument_controller import init_cache
-    init_cache(app, cache)
     
     return app
 def export():
@@ -223,18 +208,9 @@ def detailed_health_check():
     
     health_data = {
         "status": "healthy",
-        "cache": {},
         "connection_pools": {}
     }
-    
-    # Get cache stats
-    try:
-        # SimpleCache doesn't expose stats directly, but we can check if it's initialized
-        health_data["cache"]["type"] = "SimpleCache"
-        health_data["cache"]["status"] = "initialized" if cache else "not_initialized"
-    except Exception as e:
-        health_data["cache"]["error"] = str(e)
-    
+
     # Get connection pool stats for each product type
     try:
         from controllers.instrument_controller import _services_cache

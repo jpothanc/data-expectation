@@ -30,46 +30,10 @@ instrument_api = Blueprint('instrument_api', __name__)
 _loader_factory: LoaderFactory | None = None
 _services_cache: dict[str, InstrumentService] = {}
 
-# Shared cache instance — injected by app.py via init_cache().
-_cache = None
-
-# Cache TTLs — loaded from config on first access.
-_CACHE_EXCHANGE_LIST_TTL: int | None = None
-_CACHE_VALIDATION_TTL: int | None = None
-
 
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
-
-def _get_cache_ttls() -> tuple[int, int]:
-    """Return (exchange_list_ttl, validation_ttl) from config, loaded once."""
-    global _CACHE_EXCHANGE_LIST_TTL, _CACHE_VALIDATION_TTL
-    if _CACHE_EXCHANGE_LIST_TTL is None:
-        try:
-            cache_cfg = ConfigService().get_cache_config()
-            _CACHE_EXCHANGE_LIST_TTL = cache_cfg.get('exchange_list_timeout_seconds', 300)
-            _CACHE_VALIDATION_TTL = cache_cfg.get('validation_timeout_seconds', 60)
-        except Exception:
-            _CACHE_EXCHANGE_LIST_TTL, _CACHE_VALIDATION_TTL = 300, 60
-    return _CACHE_EXCHANGE_LIST_TTL, _CACHE_VALIDATION_TTL
-
-
-def get_cache():
-    """Return the cache instance.  Raises if init_cache() was not called."""
-    if _cache is None:
-        raise RuntimeError(
-            "Cache has not been initialised. "
-            "Call controllers.instrument_controller.init_cache(app, cache) during startup."
-        )
-    return _cache
-
-
-def init_cache(app, cache_instance) -> None:
-    """Inject the application-level cache instance into this blueprint."""
-    global _cache
-    _cache = cache_instance
-
 
 def get_service(product_type: str = 'stock') -> InstrumentService:
     """Return a cached InstrumentService for *product_type*, creating it on first use."""
@@ -225,23 +189,11 @@ def get_all_exchanges():
     if err:
         return err
 
-    cache = get_cache()
-    cache_key = f"exchanges:{product_type}"
-    cached = cache.get(cache_key)
-    if cached is not None:
-        logger.info("Cache HIT — exchanges: product_type=%s", product_type)
-        return jsonify(cached)
-
-    logger.info("Cache MISS — exchanges: product_type=%s", product_type)
     try:
         exchange_map = ConfigService().get_csv_exchange_map(product_type)
         if not exchange_map:
             return not_found(f"No exchanges found for product_type '{product_type}'")
-
-        exchanges = list(exchange_map.keys())
-        exchange_list_ttl, _ = _get_cache_ttls()
-        cache.set(cache_key, exchanges, timeout=exchange_list_ttl)
-        return jsonify(exchanges)
+        return jsonify(list(exchange_map.keys()))
     except Exception as e:
         logger.error("Error retrieving exchanges: %s", e, exc_info=True)
         return server_error(f"Error retrieving exchanges: {e}")
@@ -403,18 +355,8 @@ def get_instruments_by_exchange(exchange):
     limit = request.args.get('limit', type=int)
     offset = request.args.get('offset', default=0, type=int)
 
-    cache = get_cache()
-    cache_key = f"instruments:{product_type}:{exchange}:{limit}:{offset}"
-    cached = cache.get(cache_key)
-    if cached is not None:
-        logger.info("Cache HIT — instruments: exchange=%s product_type=%s", exchange, product_type)
-        return jsonify(cached)
-
-    logger.info("Cache MISS — instruments: exchange=%s product_type=%s", exchange, product_type)
     try:
         result = get_service(product_type).get_by_exchange(exchange, limit, offset)
-        _, validation_ttl = _get_cache_ttls()
-        cache.set(cache_key, result, timeout=validation_ttl)
         return jsonify(result)
     except (ValueError, FileNotFoundError) as e:
         return not_found(str(e))
