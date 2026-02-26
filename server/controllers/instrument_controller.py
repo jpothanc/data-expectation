@@ -9,6 +9,7 @@ Responsibilities of this module:
 Nothing else.  Service creation, caching, and business logic all live in
 the service layer.
 """
+from __future__ import annotations
 
 import logging
 from flask import Blueprint, request, jsonify

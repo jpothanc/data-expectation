@@ -8,6 +8,7 @@ Responsibilities of this module:
 
 Nothing else.
 """
+from __future__ import annotations
 
 import logging
 import threading
